@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Panel de Clasificación - Xplore</title>
+    <title>Clasificar Vehículo</title>
     <link rel="icon" href="/static/icon.png" type="image/png">
     <style>
         body {
@@ -40,21 +40,36 @@
             font-size: 16px;
             color: green;
         }
+        .lista {
+            max-width: 500px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+        }
+        .lista h2 {
+            text-align: center;
+        }
+        ul {
+            list-style: disc;
+            padding-left: 20px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Clasificación de Vehículos</h1>
+    <h1>Clasificar Vehículo</h1>
 
     <form action="/clasificar" method="post">
-        <label for="codigo">Vehículo registrado</label>
+        <label for="codigo">Código:</label>
         <select name="codigo" required>
             {% for codigo in vehiculos %}
                 <option value="{{ codigo }}">{{ codigo }}</option>
             {% endfor %}
         </select>
 
-        <label for="suciedad">Nivel de suciedad</label>
+        <label for="suciedad">Nivel de suciedad:</label>
         <select name="suciedad" required>
             <option value="Muy sucio">Muy sucio</option>
             <option value="Normal">Normal</option>
@@ -63,7 +78,7 @@
             <option value="Franeleado">Franeleado</option>
         </select>
 
-        <label for="tipo">Tipo de vehículo</label>
+        <label for="tipo">Tipo de vehículo:</label>
         <select name="tipo" required>
             <option value="Camioneta Grande">Camioneta Grande</option>
             <option value="Camioneta pequeña">Camioneta pequeña</option>
@@ -73,12 +88,21 @@
             <option value="Turismo pequeño">Turismo pequeño</option>
         </select>
 
-        <input type="submit" value="Guardar Clasificación">
+        <input type="submit" value="Clasificar">
     </form>
 
     {% if mensaje %}
         <div class="mensaje">{{ mensaje }}</div>
     {% endif %}
+
+    <div class="lista">
+        <h2>Vehículos registrados:</h2>
+        <ul>
+            {% for codigo in vehiculos %}
+                <li>{{ codigo }}</li>
+            {% endfor %}
+        </ul>
+    </div>
 
 </body>
 </html>
