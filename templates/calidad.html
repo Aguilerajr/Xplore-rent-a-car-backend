@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Clasificación - Xplore</title>
+    <link rel="icon" href="/static/icon.png" type="image/png">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            padding: 40px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        form {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 30px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 15px;
+        }
+        select, input[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .mensaje {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 16px;
+            color: green;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Clasificación de Vehículos</h1>
+
+    <form action="/clasificar" method="post">
+        <label for="codigo">Vehículo registrado</label>
+        <select name="codigo" required>
+            {% for codigo in vehiculos %}
+                <option value="{{ codigo }}">{{ codigo }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="suciedad">Nivel de suciedad</label>
+        <select name="suciedad" required>
+            <option value="Muy sucio">Muy sucio</option>
+            <option value="Normal">Normal</option>
+            <option value="Poco sucio">Poco sucio</option>
+            <option value="Shampuseado">Shampuseado</option>
+            <option value="Franeleado">Franeleado</option>
+        </select>
+
+        <label for="tipo">Tipo de vehículo</label>
+        <select name="tipo" required>
+            <option value="Camioneta Grande">Camioneta Grande</option>
+            <option value="Camioneta pequeña">Camioneta pequeña</option>
+            <option value="Busito">Busito</option>
+            <option value="Pick Up">Pick Up</option>
+            <option value="Turismo normal">Turismo normal</option>
+            <option value="Turismo pequeño">Turismo pequeño</option>
+        </select>
+
+        <input type="submit" value="Guardar Clasificación">
+    </form>
+
+    {% if mensaje %}
+        <div class="mensaje">{{ mensaje }}</div>
+    {% endif %}
+
+</body>
+</html>
