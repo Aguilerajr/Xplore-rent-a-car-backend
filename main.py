@@ -184,11 +184,10 @@ def registrar_evento(entrada: RegistroEntrada):
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    UPDATE cola_lavado
-                    SET estado = 'completado'
-                    WHERE codigo_vehiculo = ?
-                """, (vehiculo,))
-                conn.commit()
+                    DELETE FROM cola_lavado
+                     WHERE codigo_vehiculo = ?
+                    """, (vehiculo,))
+
 
             return {
                 "status": "checkout",
