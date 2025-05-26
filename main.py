@@ -10,9 +10,8 @@ from datetime import datetime
 from pydantic import BaseModel
 import uvicorn
 
-# Para correr local
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
 
 app = FastAPI()
 
@@ -22,26 +21,13 @@ STATIC_DIR = BASE_DIR / "static"
 DB_PATH = BASE_DIR / "registros.db"
 JSON_PATH = BASE_DIR / "registros.json"
 
-# Crear tablas si no existen
+# Crear tabla cola_lavado si no existe
 with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS vehiculos (
-            codigo TEXT PRIMARY KEY
-        );
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS clasificaciones (
-            codigo TEXT PRIMARY KEY,
-            clasificacion TEXT,
-            revisado_por TEXT,
-            tiempo_estimado INTEGER
-        );
-    """)
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS cola_lavado (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo_vehiculo TEXT NOT NULL,
+            codigo_vehiculo TEXT UNIQUE NOT NULL,
             clasificacion TEXT NOT NULL,
             lavador TEXT,
             fecha DATE NOT NULL,
@@ -51,37 +37,32 @@ with sqlite3.connect(DB_PATH) as conn:
     """)
     conn.commit()
 
-# Inicializar lista de vehículos
-vehiculos_iniciales = ["CAR001", "CAR002", "VEH0003", "VEH0004"]
+# Crear tabla clasificaciones si no existe
 with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
-    for codigo in vehiculos_iniciales:
-        cursor.execute("INSERT OR IGNORE INTO vehiculos (codigo) VALUES (?)", (codigo,))
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clasificaciones (
+            codigo TEXT PRIMARY KEY,
+            clasificacion TEXT,
+            revisado_por TEXT,
+            tiempo_estimado INTEGER
+        );
+    """)
     conn.commit()
 
-# Sincronizar registros.json con la cola de lavado
-try:
-    if JSON_PATH.exists():
-        with open(JSON_PATH, "r", encoding="utf-8") as f:
-            registros = json.load(f)
-
-        vehiculos_con_checkout = {
-            vehiculo for vehiculo, eventos in registros.items()
-            for evento in eventos
-            if evento.get("fin") is not None
-        }
-
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            for codigo in vehiculos_con_checkout:
-                cursor.execute("""
-                    UPDATE cola_lavado
-                    SET estado = 'completado'
-                    WHERE codigo_vehiculo = ? AND estado = 'en_cola'
-                """, (codigo,))
-            conn.commit()
-except Exception as e:
-    print(f"Error al sincronizar cola_lavado con registros.json: {e}")
+# Crear tabla vehiculos si no existe (con algunos códigos de ejemplo)
+with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS vehiculos (
+            codigo TEXT PRIMARY KEY
+        );
+    """)
+    # Insertar algunos vehículos de prueba si no existen
+    cursor.executemany("""
+        INSERT OR IGNORE INTO vehiculos (codigo) VALUES (?)
+    """, [('CAR001',), ('CAR002',), ('VEH0003',), ('VEH0004',)])
+    conn.commit()
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
@@ -115,7 +96,6 @@ def mostrar_formulario(request: Request):
     cursor.execute("SELECT codigo FROM vehiculos")
     vehiculos = [row[0] for row in cursor.fetchall()]
     conn.close()
-
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": vehiculos,
@@ -161,13 +141,14 @@ def clasificar_vehiculo(
             VALUES (?, ?, ?, ?)
         """, (codigo, clasificacion, "Calidad", 7))
 
-        # Insertar en la cola de lavado
-        ahora = datetime.now()
-        semana_actual = ahora.isocalendar()[1]
+        # Insertar o actualizar la cola de lavado
         cursor.execute("""
-            INSERT INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana)
-            VALUES (?, ?, ?, ?)
-        """, (codigo, clasificacion, ahora.date(), semana_actual))
+            INSERT INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana, estado)
+            VALUES (?, ?, DATE('now'), strftime('%W', 'now'), 'en_cola')
+            ON CONFLICT(codigo_vehiculo) DO UPDATE SET
+                clasificacion=excluded.clasificacion,
+                estado='en_cola'
+        """, (codigo, clasificacion))
         conn.commit()
         conn.close()
 
@@ -193,14 +174,16 @@ class RegistroEntrada(BaseModel):
 def registrar_evento(entrada: RegistroEntrada):
     vehiculo = entrada.vehiculo
     empleado = entrada.empleado
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     if not obtener_clasificacion(vehiculo):
         return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
 
     datos = cargar_datos_json()
-    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    eventos_vehiculo = datos.get(vehiculo, [])
 
-    for evento in datos.get(vehiculo, []):
+    # Checkout
+    for evento in eventos_vehiculo:
         if evento["empleado"] == empleado and evento["fin"] is None:
             evento["fin"] = ahora
             guardar_datos_json(datos)
@@ -210,7 +193,7 @@ def registrar_evento(entrada: RegistroEntrada):
                 cursor.execute("""
                     UPDATE cola_lavado
                     SET estado = 'completado'
-                    WHERE codigo_vehiculo = ? AND estado = 'en_cola'
+                    WHERE codigo_vehiculo = ? AND estado != 'completado'
                 """, (vehiculo,))
                 conn.commit()
 
@@ -219,23 +202,31 @@ def registrar_evento(entrada: RegistroEntrada):
                 "vehiculo": vehiculo,
                 "empleado": empleado,
                 "fin": ahora,
-                "mensaje": f"✅ Check-out realizado para {vehiculo} por {empleado}"
+                "mensaje": f"✅ Check-out completado para {vehiculo} por {empleado}"
             }
 
+    # Verificar si este empleado tiene otro check-in abierto
     for eventos in datos.values():
         for e in eventos:
             if e["empleado"] == empleado and e["fin"] is None:
-                return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in"}, status_code=400)
+                return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in abierto"}, status_code=400)
 
+    # Check-in nuevo
+    nuevo_evento = {"empleado": empleado, "inicio": ahora, "fin": None}
     if vehiculo not in datos:
         datos[vehiculo] = []
-
-    datos[vehiculo].append({
-        "empleado": empleado,
-        "inicio": ahora,
-        "fin": None
-    })
+    datos[vehiculo].append(nuevo_evento)
     guardar_datos_json(datos)
+
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana, estado, lavador)
+            SELECT ?, clasificacion, DATE('now'), strftime('%W', 'now'), 'en_cola', ?
+            FROM clasificaciones WHERE codigo = ?
+            ON CONFLICT (codigo_vehiculo) DO UPDATE SET estado='en_cola'
+        """, (vehiculo, empleado, vehiculo))
+        conn.commit()
 
     return {
         "status": "checkin",
