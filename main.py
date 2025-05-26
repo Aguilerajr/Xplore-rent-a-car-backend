@@ -1,11 +1,18 @@
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import sqlite3
+import json
 import os
 from datetime import datetime
+from pydantic import BaseModel
+import uvicorn
+
+# Para correr local
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
 app = FastAPI()
 
@@ -13,9 +20,89 @@ BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 DB_PATH = BASE_DIR / "registros.db"
+JSON_PATH = BASE_DIR / "registros.json"
+
+# Crear tablas si no existen
+with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS vehiculos (
+            codigo TEXT PRIMARY KEY
+        );
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clasificaciones (
+            codigo TEXT PRIMARY KEY,
+            clasificacion TEXT,
+            revisado_por TEXT,
+            tiempo_estimado INTEGER
+        );
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cola_lavado (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo_vehiculo TEXT NOT NULL,
+            clasificacion TEXT NOT NULL,
+            lavador TEXT,
+            fecha DATE NOT NULL,
+            semana INTEGER NOT NULL,
+            estado TEXT DEFAULT 'en_cola'
+        );
+    """)
+    conn.commit()
+
+# Inicializar lista de vehículos
+vehiculos_iniciales = ["CAR001", "CAR002", "VEH0003", "VEH0004"]
+with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    for codigo in vehiculos_iniciales:
+        cursor.execute("INSERT OR IGNORE INTO vehiculos (codigo) VALUES (?)", (codigo,))
+    conn.commit()
+
+# Sincronizar registros.json con la cola de lavado
+try:
+    if JSON_PATH.exists():
+        with open(JSON_PATH, "r", encoding="utf-8") as f:
+            registros = json.load(f)
+
+        vehiculos_con_checkout = {
+            vehiculo for vehiculo, eventos in registros.items()
+            for evento in eventos
+            if evento.get("fin") is not None
+        }
+
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            for codigo in vehiculos_con_checkout:
+                cursor.execute("""
+                    UPDATE cola_lavado
+                    SET estado = 'completado'
+                    WHERE codigo_vehiculo = ? AND estado = 'en_cola'
+                """, (codigo,))
+            conn.commit()
+except Exception as e:
+    print(f"Error al sincronizar cola_lavado con registros.json: {e}")
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+
+def cargar_datos_json():
+    if os.path.exists(JSON_PATH):
+        with open(JSON_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+def guardar_datos_json(data):
+    with open(JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+def obtener_clasificacion(vehiculo):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT clasificacion FROM clasificaciones WHERE codigo = ?", (vehiculo,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -23,10 +110,12 @@ def home():
 
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT codigo FROM vehiculos")
-        vehiculos = [row[0] for row in cursor.fetchall()]
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT codigo FROM vehiculos")
+    vehiculos = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": vehiculos,
@@ -47,6 +136,7 @@ def clasificar_vehiculo(
         "Shampuseado": "4",
         "Franeleado": "5"
     }
+
     tipo_map = {
         "Camioneta Grande": "A",
         "Camioneta pequeña": "B",
@@ -64,43 +154,30 @@ def clasificar_vehiculo(
     else:
         clasificacion = tipo_vehiculo + grado
 
-        try:
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-
-                # Insertar o actualizar en clasificaciones
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS clasificaciones (
-                        codigo TEXT PRIMARY KEY,
-                        clasificacion TEXT,
-                        revisado_por TEXT,
-                        tiempo_estimado INTEGER
-                    )
-                """)
-                cursor.execute("""
-                    INSERT OR REPLACE INTO clasificaciones (codigo, clasificacion, revisado_por, tiempo_estimado)
-                    VALUES (?, ?, ?, ?)
-                """, (codigo, clasificacion, "Calidad", 7))
-
-                # Agregar a la cola de lavado
-                fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                semana_actual = datetime.now().isocalendar()[1]
-                cursor.execute("""
-                    INSERT INTO cola_lavado (codigo_vehiculo, clasificacion, lavador, fecha, semana, estado)
-                    VALUES (?, ?, ?, ?, ?, 'en_cola')
-                """, (codigo, clasificacion, None, fecha_actual, semana_actual))
-
-                conn.commit()
-                mensaje = f"✅ {codigo} clasificado y agregado a la cola de lavado"
-        except Exception as e:
-            mensaje = f"❌ Error: {e}"
-            print(f"[ERROR] {e}")
-
-    # Actualizar lista de vehículos
-    with sqlite3.connect(DB_PATH) as conn:
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT codigo FROM vehiculos")
-        vehiculos = [row[0] for row in cursor.fetchall()]
+        cursor.execute("""
+            INSERT OR REPLACE INTO clasificaciones (codigo, clasificacion, revisado_por, tiempo_estimado)
+            VALUES (?, ?, ?, ?)
+        """, (codigo, clasificacion, "Calidad", 7))
+
+        # Insertar en la cola de lavado
+        ahora = datetime.now()
+        semana_actual = ahora.isocalendar()[1]
+        cursor.execute("""
+            INSERT INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana)
+            VALUES (?, ?, ?, ?)
+        """, (codigo, clasificacion, ahora.date(), semana_actual))
+        conn.commit()
+        conn.close()
+
+        mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT codigo FROM vehiculos")
+    vehiculos = [row[0] for row in cursor.fetchall()]
+    conn.close()
 
     return templates.TemplateResponse("calidad.html", {
         "request": request,
@@ -108,6 +185,62 @@ def clasificar_vehiculo(
         "mensaje": mensaje
     })
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+class RegistroEntrada(BaseModel):
+    vehiculo: str
+    empleado: str
+
+@app.post("/registrar")
+def registrar_evento(entrada: RegistroEntrada):
+    vehiculo = entrada.vehiculo
+    empleado = entrada.empleado
+
+    if not obtener_clasificacion(vehiculo):
+        return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
+
+    datos = cargar_datos_json()
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    for evento in datos.get(vehiculo, []):
+        if evento["empleado"] == empleado and evento["fin"] is None:
+            evento["fin"] = ahora
+            guardar_datos_json(datos)
+
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE cola_lavado
+                    SET estado = 'completado'
+                    WHERE codigo_vehiculo = ? AND estado = 'en_cola'
+                """, (vehiculo,))
+                conn.commit()
+
+            return {
+                "status": "checkout",
+                "vehiculo": vehiculo,
+                "empleado": empleado,
+                "fin": ahora,
+                "mensaje": f"✅ Check-out realizado para {vehiculo} por {empleado}"
+            }
+
+    for eventos in datos.values():
+        for e in eventos:
+            if e["empleado"] == empleado and e["fin"] is None:
+                return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in"}, status_code=400)
+
+    if vehiculo not in datos:
+        datos[vehiculo] = []
+
+    datos[vehiculo].append({
+        "empleado": empleado,
+        "inicio": ahora,
+        "fin": None
+    })
+    guardar_datos_json(datos)
+
+    return {
+        "status": "checkin",
+        "vehiculo": vehiculo,
+        "empleado": empleado,
+        "inicio": ahora,
+        "mensaje": f"🚗 Check-in registrado para {vehiculo} por {empleado}"
+    }
