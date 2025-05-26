@@ -88,8 +88,15 @@ def home():
 
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
-    data = cargar_datos_json()
-    vehiculos = list(data.keys())
+    # Leer vehículos directamente de la base de datos
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'en_cola'")
+    filas = cursor.fetchall()
+    conn.close()
+    
+    vehiculos = [fila[0] for fila in filas]
+
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": vehiculos,
@@ -152,8 +159,15 @@ def clasificar_vehiculo(
 
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
-    data = cargar_datos_json()
-    vehiculos = list(data.keys())
+    # Recargar la lista desde la base de datos
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'en_cola'")
+    filas = cursor.fetchall()
+    conn.close()
+    
+    vehiculos = [fila[0] for fila in filas]
+
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": vehiculos,
@@ -180,14 +194,14 @@ def registrar_evento(entrada: RegistroEntrada):
             evento["fin"] = ahora
             guardar_datos_json(datos)
 
-            # 🚀 Actualiza cola_lavado sin importar el estado anterior
+            # Borrar directamente de la cola_lavado
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     DELETE FROM cola_lavado
-                     WHERE codigo_vehiculo = ?
-                    """, (vehiculo,))
-
+                    WHERE codigo_vehiculo = ?
+                """, (vehiculo,))
+                conn.commit()
 
             return {
                 "status": "checkout",
