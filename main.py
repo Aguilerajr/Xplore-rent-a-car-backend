@@ -88,14 +88,9 @@ def home():
 
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
-    # Leer vehículos directamente de la base de datos
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'en_cola'")
-    filas = cursor.fetchall()
-    conn.close()
-    
-    vehiculos = [fila[0] for fila in filas]
+    # ⚠️ Usar el JSON para llenar la lista
+    data = cargar_datos_json()
+    vehiculos = list(data.keys())
 
     return templates.TemplateResponse("calidad.html", {
         "request": request,
@@ -159,15 +154,8 @@ def clasificar_vehiculo(
 
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
-    # Recargar la lista desde la base de datos
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'en_cola'")
-    filas = cursor.fetchall()
-    conn.close()
-    
-    vehiculos = [fila[0] for fila in filas]
-
+    data = cargar_datos_json()
+    vehiculos = list(data.keys())
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": vehiculos,
@@ -194,7 +182,7 @@ def registrar_evento(entrada: RegistroEntrada):
             evento["fin"] = ahora
             guardar_datos_json(datos)
 
-            # Borrar directamente de la cola_lavado
+            # 🚀 Eliminar directamente de la cola_lavado
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
