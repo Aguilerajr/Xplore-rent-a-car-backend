@@ -13,7 +13,6 @@ import uvicorn
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000)
 
-
 app = FastAPI()
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -56,7 +55,7 @@ try:
                 cursor.execute("""
                     UPDATE cola_lavado
                     SET estado = 'completado'
-                    WHERE codigo_vehiculo = ? AND estado = 'en_cola'
+                    WHERE codigo_vehiculo = ?
                 """, (codigo,))
             conn.commit()
 except Exception as e:
@@ -181,12 +180,13 @@ def registrar_evento(entrada: RegistroEntrada):
             evento["fin"] = ahora
             guardar_datos_json(datos)
 
+            # 🚀 Actualiza cola_lavado sin importar el estado anterior
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     UPDATE cola_lavado
                     SET estado = 'completado'
-                    WHERE codigo_vehiculo = ? AND estado = 'en_cola'
+                    WHERE codigo_vehiculo = ?
                 """, (vehiculo,))
                 conn.commit()
 
