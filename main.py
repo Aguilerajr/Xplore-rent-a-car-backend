@@ -18,9 +18,25 @@ TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 DB_PATH = BASE_DIR / "registros.db"
 
-# Crear tabla cola_lavado con todos los campos necesarios
+# Crear todas las tablas necesarias y poblar vehiculos con códigos ejemplo
 with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS vehiculos (
+            codigo TEXT PRIMARY KEY
+        );
+    """)
+    # Insertar vehículos de ejemplo
+    vehiculos_ejemplo = [
+        ('CAR001',),
+        ('CAR002',),
+        ('VEH0003',),
+        ('VEH0004',),
+    ]
+    cursor.executemany("""
+        INSERT OR IGNORE INTO vehiculos (codigo) VALUES (?)
+    """, vehiculos_ejemplo)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cola_lavado (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,10 +77,10 @@ def home():
 
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
-    # Leer vehículos directamente de la base de datos (en cola)
+    # Cargar vehículos posibles desde la tabla vehiculos
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'en_cola'")
+    cursor.execute("SELECT codigo FROM vehiculos")
     filas = cursor.fetchall()
     conn.close()
 
@@ -118,9 +134,9 @@ def clasificar_vehiculo(
             VALUES (?, ?, ?, ?)
         """, (codigo, clasificacion, "Calidad", 7))
 
-        # Insertar o actualizar en cola_lavado
+        # Insertar en la cola de lavado
         cursor.execute("""
-            INSERT OR REPLACE INTO cola_lavado (codigo_vehiculo, clasificacion, lavador, fecha, semana, estado, inicio, fin)
+            INSERT INTO cola_lavado (codigo_vehiculo, clasificacion, lavador, fecha, semana, estado, inicio, fin)
             VALUES (?, ?, '', ?, ?, 'en_cola', '', '')
         """, (codigo, clasificacion, fecha_actual, semana_actual))
         conn.commit()
@@ -128,13 +144,12 @@ def clasificar_vehiculo(
 
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
-    # Recargar la lista desde la base de datos
+    # Recargar lista de vehículos desde la tabla vehiculos
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'en_cola'")
+    cursor.execute("SELECT codigo FROM vehiculos")
     filas = cursor.fetchall()
     conn.close()
-
     vehiculos = [fila[0] for fila in filas]
 
     return templates.TemplateResponse("calidad.html", {
@@ -159,7 +174,8 @@ def registrar_evento(entrada: RegistroEntrada):
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # Verificar si el empleado ya está con un check-in abierto en otro vehículo
+
+    # Verificar si el empleado ya tiene un check-in abierto
     cursor.execute("""
         SELECT codigo_vehiculo FROM cola_lavado
         WHERE lavador = ? AND estado = 'en_cola' AND inicio != '' AND fin = ''
@@ -169,7 +185,7 @@ def registrar_evento(entrada: RegistroEntrada):
         conn.close()
         return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in"}, status_code=400)
 
-    # Verificar si ya tiene un check-in abierto para este vehículo
+    # Verificar si ya tiene un check-in para este vehículo
     cursor.execute("""
         SELECT inicio FROM cola_lavado
         WHERE codigo_vehiculo = ? AND lavador = ? AND estado = 'en_cola' AND inicio != '' AND fin = ''
@@ -177,7 +193,7 @@ def registrar_evento(entrada: RegistroEntrada):
     registro = cursor.fetchone()
 
     if registro:
-        # Si ya tiene check-in, hacer check-out
+        # Check-out
         cursor.execute("""
             UPDATE cola_lavado
             SET fin = ?, estado = 'completado'
@@ -193,7 +209,7 @@ def registrar_evento(entrada: RegistroEntrada):
             "mensaje": f"✅ Check-out realizado para {vehiculo} por {empleado}"
         }
     else:
-        # Si no tiene check-in, registrarlo
+        # Check-in
         cursor.execute("""
             UPDATE cola_lavado
             SET lavador = ?, inicio = ?, fin = ''
