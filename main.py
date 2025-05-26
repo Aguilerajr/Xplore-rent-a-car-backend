@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -27,7 +27,7 @@ with sqlite3.connect(DB_PATH) as conn:
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cola_lavado (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo_vehiculo TEXT UNIQUE NOT NULL,
+            codigo_vehiculo TEXT NOT NULL,
             clasificacion TEXT NOT NULL,
             lavador TEXT,
             fecha DATE NOT NULL,
@@ -37,20 +37,7 @@ with sqlite3.connect(DB_PATH) as conn:
     """)
     conn.commit()
 
-# Crear tabla clasificaciones si no existe
-with sqlite3.connect(DB_PATH) as conn:
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS clasificaciones (
-            codigo TEXT PRIMARY KEY,
-            clasificacion TEXT,
-            revisado_por TEXT,
-            tiempo_estimado INTEGER
-        );
-    """)
-    conn.commit()
-
-# Crear tabla vehiculos si no existe (con algunos códigos de ejemplo)
+# Crear tabla vehiculos si no existe (con algunos códigos iniciales)
 with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
     cursor.execute("""
@@ -58,10 +45,11 @@ with sqlite3.connect(DB_PATH) as conn:
             codigo TEXT PRIMARY KEY
         );
     """)
-    # Insertar algunos vehículos de prueba si no existen
+    # Insertar códigos iniciales si no existen
+    iniciales = [("CAR001",), ("CAR002",), ("VEH0003",), ("VEH0004",)]
     cursor.executemany("""
         INSERT OR IGNORE INTO vehiculos (codigo) VALUES (?)
-    """, [('CAR001',), ('CAR002',), ('VEH0003',), ('VEH0004',)])
+    """, iniciales)
     conn.commit()
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -91,16 +79,20 @@ def home():
 
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT codigo FROM vehiculos")
-    vehiculos = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return templates.TemplateResponse("calidad.html", {
-        "request": request,
-        "vehiculos": vehiculos,
-        "mensaje": ""
-    })
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT codigo FROM vehiculos")
+        vehiculos = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return templates.TemplateResponse("calidad.html", {
+            "request": request,
+            "vehiculos": vehiculos,
+            "mensaje": ""
+        })
+    except Exception as e:
+        print(f"[ERROR /calidad]: {e}")
+        raise HTTPException(status_code=500, detail="Error interno en /calidad")
 
 @app.post("/clasificar", response_class=HTMLResponse)
 def clasificar_vehiculo(
@@ -109,62 +101,68 @@ def clasificar_vehiculo(
     suciedad: str = Form(...),
     tipo: str = Form(...)
 ):
-    clasificacion_map = {
-        "Muy sucio": "1",
-        "Normal": "2",
-        "Poco sucio": "3",
-        "Shampuseado": "4",
-        "Franeleado": "5"
-    }
+    try:
+        clasificacion_map = {
+            "Muy sucio": "1",
+            "Normal": "2",
+            "Poco sucio": "3",
+            "Shampuseado": "4",
+            "Franeleado": "5"
+        }
+        tipo_map = {
+            "Camioneta Grande": "A",
+            "Camioneta pequeña": "B",
+            "Busito": "C",
+            "Pick Up": "D",
+            "Turismo normal": "E",
+            "Turismo pequeño": "F"
+        }
 
-    tipo_map = {
-        "Camioneta Grande": "A",
-        "Camioneta pequeña": "B",
-        "Busito": "C",
-        "Pick Up": "D",
-        "Turismo normal": "E",
-        "Turismo pequeño": "F"
-    }
+        grado = clasificacion_map.get(suciedad)
+        tipo_vehiculo = tipo_map.get(tipo)
 
-    grado = clasificacion_map.get(suciedad)
-    tipo_vehiculo = tipo_map.get(tipo)
+        if not grado or not tipo_vehiculo:
+            mensaje = "❌ Clasificación inválida"
+        else:
+            clasificacion = tipo_vehiculo + grado
 
-    if not grado or not tipo_vehiculo:
-        mensaje = "❌ Clasificación inválida"
-    else:
-        clasificacion = tipo_vehiculo + grado
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS clasificaciones (
+                        codigo TEXT PRIMARY KEY,
+                        clasificacion TEXT,
+                        revisado_por TEXT,
+                        tiempo_estimado INTEGER
+                    )
+                """)
+                cursor.execute("""
+                    INSERT OR REPLACE INTO clasificaciones (codigo, clasificacion, revisado_por, tiempo_estimado)
+                    VALUES (?, ?, ?, ?)
+                """, (codigo, clasificacion, "Calidad", 7))
+
+                cursor.execute("""
+                    INSERT OR REPLACE INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana, estado)
+                    VALUES (?, ?, DATE('now'), strftime('%W', 'now'), 'en_cola')
+                """, (codigo, clasificacion))
+                conn.commit()
+
+            mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO clasificaciones (codigo, clasificacion, revisado_por, tiempo_estimado)
-            VALUES (?, ?, ?, ?)
-        """, (codigo, clasificacion, "Calidad", 7))
-
-        # Insertar o actualizar la cola de lavado
-        cursor.execute("""
-            INSERT INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana, estado)
-            VALUES (?, ?, DATE('now'), strftime('%W', 'now'), 'en_cola')
-            ON CONFLICT(codigo_vehiculo) DO UPDATE SET
-                clasificacion=excluded.clasificacion,
-                estado='en_cola'
-        """, (codigo, clasificacion))
-        conn.commit()
+        cursor.execute("SELECT codigo FROM vehiculos")
+        vehiculos = [row[0] for row in cursor.fetchall()]
         conn.close()
 
-        mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT codigo FROM vehiculos")
-    vehiculos = [row[0] for row in cursor.fetchall()]
-    conn.close()
-
-    return templates.TemplateResponse("calidad.html", {
-        "request": request,
-        "vehiculos": vehiculos,
-        "mensaje": mensaje
-    })
+        return templates.TemplateResponse("calidad.html", {
+            "request": request,
+            "vehiculos": vehiculos,
+            "mensaje": mensaje
+        })
+    except Exception as e:
+        print(f"[ERROR /clasificar]: {e}")
+        raise HTTPException(status_code=500, detail="Error interno en /clasificar")
 
 class RegistroEntrada(BaseModel):
     vehiculo: str
@@ -172,66 +170,57 @@ class RegistroEntrada(BaseModel):
 
 @app.post("/registrar")
 def registrar_evento(entrada: RegistroEntrada):
-    vehiculo = entrada.vehiculo
-    empleado = entrada.empleado
-    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        vehiculo = entrada.vehiculo
+        empleado = entrada.empleado
 
-    if not obtener_clasificacion(vehiculo):
-        return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
+        if not obtener_clasificacion(vehiculo):
+            return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
 
-    datos = cargar_datos_json()
-    eventos_vehiculo = datos.get(vehiculo, [])
+        datos = cargar_datos_json()
+        ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Checkout
-    for evento in eventos_vehiculo:
-        if evento["empleado"] == empleado and evento["fin"] is None:
-            evento["fin"] = ahora
-            guardar_datos_json(datos)
+        for evento in datos.get(vehiculo, []):
+            if evento["empleado"] == empleado and evento["fin"] is None:
+                evento["fin"] = ahora
+                guardar_datos_json(datos)
+                with sqlite3.connect(DB_PATH) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE cola_lavado
+                        SET estado = 'completado'
+                        WHERE codigo_vehiculo = ? AND estado = 'en_cola'
+                    """, (vehiculo,))
+                    conn.commit()
+                return {
+                    "status": "checkout",
+                    "vehiculo": vehiculo,
+                    "empleado": empleado,
+                    "fin": ahora,
+                    "mensaje": f"✅ Check-out realizado para {vehiculo} por {empleado}"
+                }
 
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE cola_lavado
-                    SET estado = 'completado'
-                    WHERE codigo_vehiculo = ? AND estado != 'completado'
-                """, (vehiculo,))
-                conn.commit()
+        for eventos in datos.values():
+            for e in eventos:
+                if e["empleado"] == empleado and e["fin"] is None:
+                    return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in"}, status_code=400)
 
-            return {
-                "status": "checkout",
-                "vehiculo": vehiculo,
-                "empleado": empleado,
-                "fin": ahora,
-                "mensaje": f"✅ Check-out completado para {vehiculo} por {empleado}"
-            }
+        if vehiculo not in datos:
+            datos[vehiculo] = []
 
-    # Verificar si este empleado tiene otro check-in abierto
-    for eventos in datos.values():
-        for e in eventos:
-            if e["empleado"] == empleado and e["fin"] is None:
-                return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in abierto"}, status_code=400)
-
-    # Check-in nuevo
-    nuevo_evento = {"empleado": empleado, "inicio": ahora, "fin": None}
-    if vehiculo not in datos:
-        datos[vehiculo] = []
-    datos[vehiculo].append(nuevo_evento)
-    guardar_datos_json(datos)
-
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana, estado, lavador)
-            SELECT ?, clasificacion, DATE('now'), strftime('%W', 'now'), 'en_cola', ?
-            FROM clasificaciones WHERE codigo = ?
-            ON CONFLICT (codigo_vehiculo) DO UPDATE SET estado='en_cola'
-        """, (vehiculo, empleado, vehiculo))
-        conn.commit()
-
-    return {
-        "status": "checkin",
-        "vehiculo": vehiculo,
-        "empleado": empleado,
-        "inicio": ahora,
-        "mensaje": f"🚗 Check-in registrado para {vehiculo} por {empleado}"
-    }
+        datos[vehiculo].append({
+            "empleado": empleado,
+            "inicio": ahora,
+            "fin": None
+        })
+        guardar_datos_json(datos)
+        return {
+            "status": "checkin",
+            "vehiculo": vehiculo,
+            "empleado": empleado,
+            "inicio": ahora,
+            "mensaje": f"🚗 Check-in registrado para {vehiculo} por {empleado}"
+        }
+    except Exception as e:
+        print(f"[ERROR /registrar]: {e}")
+        raise HTTPException(status_code=500, detail="Error interno en /registrar")
