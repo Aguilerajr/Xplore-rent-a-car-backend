@@ -63,10 +63,14 @@
 
     <form action="/clasificar" method="post">
         <label for="codigo">Código:</label>
-        <select name="codigo" required>
-            {% for codigo in vehiculos %}
-                <option value="{{ codigo }}">{{ codigo }}</option>
-            {% endfor %}
+        <select name="codigo" id="codigo" required>
+            {% if vehiculos %}
+                {% for codigo in vehiculos %}
+                    <option value="{{ codigo }}">{{ codigo }}</option>
+                {% endfor %}
+            {% else %}
+                <option value="">No hay vehículos</option>
+            {% endif %}
         </select>
 
         <label for="suciedad">Nivel de suciedad:</label>
@@ -98,9 +102,13 @@
     <div class="lista">
         <h2>Vehículos registrados:</h2>
         <ul>
-            {% for codigo in vehiculos %}
-                <li>{{ codigo }}</li>
-            {% endfor %}
+            {% if vehiculos %}
+                {% for codigo in vehiculos %}
+                    <li>{{ codigo }}</li>
+                {% endfor %}
+            {% else %}
+                <li>No hay vehículos registrados aún</li>
+            {% endif %}
         </ul>
     </div>
 
