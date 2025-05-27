@@ -45,7 +45,6 @@ with sqlite3.connect(DB_PATH) as conn:
             codigo TEXT PRIMARY KEY
         );
     """)
-    # Insertar códigos iniciales si no existen
     iniciales = [("CAR001",), ("CAR002",), ("VEH0003",), ("VEH0004",)]
     cursor.executemany("""
         INSERT OR IGNORE INTO vehiculos (codigo) VALUES (?)
@@ -65,6 +64,13 @@ def guardar_datos_json(data):
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
+def agregar_registro_json(registro):
+    data = cargar_datos_json()
+    if "registros" not in data:
+        data["registros"] = []
+    data["registros"].append(registro)
+    guardar_datos_json(data)
+
 def obtener_clasificacion(vehiculo):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -80,11 +86,9 @@ def home():
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT codigo FROM vehiculos")
-        vehiculos = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        data = cargar_datos_json()
+        registros = data.get("registros", [])
+        vehiculos = [r["vehiculo"] for r in registros]
         return templates.TemplateResponse("calidad.html", {
             "request": request,
             "vehiculos": vehiculos,
@@ -139,8 +143,7 @@ def clasificar_vehiculo(
                 cursor.execute("""
                     INSERT OR REPLACE INTO clasificaciones (codigo, clasificacion, revisado_por, tiempo_estimado)
                     VALUES (?, ?, ?, ?)
-                """, (codigo, clasificacion, "Calidad", 7))
-
+                """, (codigo, clasificacion, "Calidad", 18))
                 cursor.execute("""
                     INSERT OR REPLACE INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana, estado)
                     VALUES (?, ?, DATE('now'), strftime('%W', 'now'), 'en_cola')
@@ -149,11 +152,9 @@ def clasificar_vehiculo(
 
             mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT codigo FROM vehiculos")
-        vehiculos = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        data = cargar_datos_json()
+        registros = data.get("registros", [])
+        vehiculos = [r["vehiculo"] for r in registros]
 
         return templates.TemplateResponse("calidad.html", {
             "request": request,
@@ -183,6 +184,23 @@ def registrar_evento(entrada: RegistroEntrada):
         for evento in datos.get(vehiculo, []):
             if evento["empleado"] == empleado and evento["fin"] is None:
                 evento["fin"] = ahora
+                tiempo_inicio = datetime.strptime(evento["inicio"], "%Y-%m-%d %H:%M:%S")
+                tiempo_fin = datetime.strptime(ahora, "%Y-%m-%d %H:%M:%S")
+                tiempo_real = int((tiempo_fin - tiempo_inicio).total_seconds() / 60)
+                tiempo_estimado = 18
+                eficiencia = f"{int((tiempo_estimado / tiempo_real) * 100)}%" if tiempo_real else "N/A"
+
+                registro_final = {
+                    "vehiculo": vehiculo,
+                    "empleado": empleado,
+                    "inicio": evento["inicio"],
+                    "fin": ahora,
+                    "tiempo_real": tiempo_real,
+                    "tiempo_estimado": tiempo_estimado,
+                    "eficiencia": eficiencia
+                }
+                agregar_registro_json(registro_final)
+
                 guardar_datos_json(datos)
                 with sqlite3.connect(DB_PATH) as conn:
                     cursor = conn.cursor()
@@ -197,7 +215,7 @@ def registrar_evento(entrada: RegistroEntrada):
                     "vehiculo": vehiculo,
                     "empleado": empleado,
                     "fin": ahora,
-                    "mensaje": f"✅ Check-out realizado para {vehiculo} por {empleado}"
+                    "mensaje": f"✅ Check-out realizado y registrado en historial para {vehiculo}"
                 }
 
         for eventos in datos.values():
