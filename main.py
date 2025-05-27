@@ -86,9 +86,15 @@ def home():
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
     try:
-        data = cargar_datos_json()
-        registros = data.get("registros", [])
-        vehiculos = [r["vehiculo"] for r in registros]
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT codigo FROM vehiculos
+                WHERE codigo NOT IN (
+                    SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'completado'
+                )
+            """)
+            vehiculos = [row[0] for row in cursor.fetchall()]
         return templates.TemplateResponse("calidad.html", {
             "request": request,
             "vehiculos": vehiculos,
@@ -152,9 +158,15 @@ def clasificar_vehiculo(
 
             mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
-        data = cargar_datos_json()
-        registros = data.get("registros", [])
-        vehiculos = [r["vehiculo"] for r in registros]
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT codigo FROM vehiculos
+                WHERE codigo NOT IN (
+                    SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'completado'
+                )
+            """)
+            vehiculos = [row[0] for row in cursor.fetchall()]
 
         return templates.TemplateResponse("calidad.html", {
             "request": request,
