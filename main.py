@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from pydantic import BaseModel
 import uvicorn
+from agregar_vehiculo import router as agregar_vehiculo_router
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000)
@@ -20,6 +21,7 @@ TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 DB_PATH = BASE_DIR / "registros.db"
 JSON_PATH = BASE_DIR / "registros.json"
+app.include_router(agregar_vehiculo_router)
 
 # Crear tabla cola_lavado si no existe
 with sqlite3.connect(DB_PATH) as conn:
