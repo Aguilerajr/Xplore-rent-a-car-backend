@@ -290,3 +290,12 @@ async def generar_todos_codigos():
     buffer.seek(0)
     headers = {"Content-Disposition": "attachment; filename=codigos_vehiculos.pdf"}
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
+
+@app.get("/buscar_codigos")
+def buscar_codigos(q: str):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT codigo FROM vehiculos WHERE codigo LIKE ?", (f"{q}%",))
+        resultados = [row[0] for row in cursor.fetchall()]
+    return {"resultados": resultados}
+
