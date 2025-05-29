@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, Request, HTTPException
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -10,6 +10,12 @@ from datetime import datetime
 from pydantic import BaseModel
 import uvicorn
 import re
+import io
+import barcode
+from barcode.writer import ImageWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000)
@@ -22,7 +28,6 @@ STATIC_DIR = BASE_DIR / "static"
 DB_PATH = BASE_DIR / "registros.db"
 JSON_PATH = BASE_DIR / "registros.json"
 
-# Crear tabla vehiculos si no existe
 with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
     cursor.execute("""
@@ -61,12 +66,7 @@ def mostrar_formulario(request: Request):
     })
 
 @app.post("/clasificar", response_class=HTMLResponse)
-def clasificar_vehiculo(
-    request: Request,
-    codigo: str = Form(...),
-    suciedad: str = Form(...),
-    tipo: str = Form(...)
-):
+def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str = Form(...), tipo: str = Form(...)):
     clasificacion_map = {
         "Muy sucio": "1",
         "Normal": "2",
@@ -129,72 +129,67 @@ class RegistroEntrada(BaseModel):
 
 @app.post("/registrar")
 def registrar_evento(entrada: RegistroEntrada):
-    try:
-        vehiculo = entrada.vehiculo
-        empleado = entrada.empleado
-        datos = cargar_datos_json()
-        ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    vehiculo = entrada.vehiculo
+    empleado = entrada.empleado
+    datos = cargar_datos_json()
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if not obtener_clasificacion(vehiculo):
-            return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
+    if not obtener_clasificacion(vehiculo):
+        return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
 
-        for evento in datos.get(vehiculo, []):
-            if evento["empleado"] == empleado and evento["fin"] is None:
-                evento["fin"] = ahora
-                tiempo_inicio = datetime.strptime(evento["inicio"], "%Y-%m-%d %H:%M:%S")
-                tiempo_fin = datetime.strptime(ahora, "%Y-%m-%d %H:%M:%S")
-                tiempo_real = int((tiempo_fin - tiempo_inicio).total_seconds() / 60)
-                tiempo_estimado = 18
-                eficiencia = f"{int((tiempo_estimado / tiempo_real) * 100)}%" if tiempo_real else "N/A"
-                registro_final = {
-                    "vehiculo": vehiculo,
-                    "empleado": empleado,
-                    "inicio": evento["inicio"],
-                    "fin": ahora,
-                    "tiempo_real": tiempo_real,
-                    "tiempo_estimado": tiempo_estimado,
-                    "eficiencia": eficiencia
-                }
-                agregar_registro_json(registro_final)
-                guardar_datos_json(datos)
-                with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        UPDATE cola_lavado
-                        SET estado = 'completado'
-                        WHERE codigo_vehiculo = ? AND estado = 'en_cola'
-                    """, (vehiculo,))
-                    conn.commit()
-                return {
-                    "status": "checkout",
-                    "vehiculo": vehiculo,
-                    "empleado": empleado,
-                    "fin": ahora,
-                    "mensaje": f"✅ Check-out realizado y registrado en historial para {vehiculo}"
-                }
-        for eventos in datos.values():
-            for e in eventos:
-                if e["empleado"] == empleado and e["fin"] is None:
-                    return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in"}, status_code=400)
+    for evento in datos.get(vehiculo, []):
+        if evento["empleado"] == empleado and evento["fin"] is None:
+            evento["fin"] = ahora
+            tiempo_inicio = datetime.strptime(evento["inicio"], "%Y-%m-%d %H:%M:%S")
+            tiempo_fin = datetime.strptime(ahora, "%Y-%m-%d %H:%M:%S")
+            tiempo_real = int((tiempo_fin - tiempo_inicio).total_seconds() / 60)
+            tiempo_estimado = 18
+            eficiencia = f"{int((tiempo_estimado / tiempo_real) * 100)}%" if tiempo_real else "N/A"
+            registro_final = {
+                "vehiculo": vehiculo,
+                "empleado": empleado,
+                "inicio": evento["inicio"],
+                "fin": ahora,
+                "tiempo_real": tiempo_real,
+                "tiempo_estimado": tiempo_estimado,
+                "eficiencia": eficiencia
+            }
+            agregar_registro_json(registro_final)
+            guardar_datos_json(datos)
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE cola_lavado SET estado = 'completado'
+                    WHERE codigo_vehiculo = ? AND estado = 'en_cola'
+                """, (vehiculo,))
+                conn.commit()
+            return {
+                "status": "checkout",
+                "vehiculo": vehiculo,
+                "empleado": empleado,
+                "fin": ahora,
+                "mensaje": f"✅ Check-out realizado y registrado en historial para {vehiculo}"
+            }
+    for eventos in datos.values():
+        for e in eventos:
+            if e["empleado"] == empleado and e["fin"] is None:
+                return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in"}, status_code=400)
 
-        if vehiculo not in datos:
-            datos[vehiculo] = []
-        datos[vehiculo].append({
-            "empleado": empleado,
-            "inicio": ahora,
-            "fin": None
-        })
-        guardar_datos_json(datos)
-        return {
-            "status": "checkin",
-            "vehiculo": vehiculo,
-            "empleado": empleado,
-            "inicio": ahora,
-            "mensaje": f"🚗 Check-in registrado para {vehiculo} por {empleado}"
-        }
-    except Exception as e:
-        print(f"[ERROR /registrar]: {e}")
-        raise HTTPException(status_code=500, detail="Error interno en /registrar")
+    if vehiculo not in datos:
+        datos[vehiculo] = []
+    datos[vehiculo].append({
+        "empleado": empleado,
+        "inicio": ahora,
+        "fin": None
+    })
+    guardar_datos_json(datos)
+    return {
+        "status": "checkin",
+        "vehiculo": vehiculo,
+        "empleado": empleado,
+        "inicio": ahora,
+        "mensaje": f"🚗 Check-in registrado para {vehiculo} por {empleado}"
+    }
 
 def cargar_datos_json():
     if os.path.exists(JSON_PATH):
@@ -249,7 +244,6 @@ def procesar_agregar_vehiculo(request: Request, letra: str = Form(...), digitos:
         "mensaje": mensaje
     })
 
-# 🚀 Nuevo endpoint para listar todos los vehículos
 @app.get("/listar_vehiculos")
 def listar_vehiculos():
     with sqlite3.connect(DB_PATH) as conn:
@@ -257,3 +251,42 @@ def listar_vehiculos():
         cursor.execute("SELECT codigo FROM vehiculos")
         vehiculos = [row[0] for row in cursor.fetchall()]
     return {"vehiculos": vehiculos}
+
+# Generación de códigos de barras
+@app.get("/crear_codigos", response_class=HTMLResponse)
+def mostrar_creador_codigos(request: Request):
+    return templates.TemplateResponse("crear_codigos.html", {"request": request})
+
+@app.post("/crear_codigos/generar")
+async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
+    buffer = io.BytesIO()
+    barcode.generate("code128", codigo, writer=ImageWriter(), output=buffer)
+    buffer.seek(0)
+    headers = {"Content-Disposition": f"attachment; filename={codigo}.png"}
+    return StreamingResponse(buffer, media_type="image/png", headers=headers)
+
+@app.get("/crear_codigos/generar_todos")
+async def generar_todos_codigos():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT codigo FROM vehiculos")
+        codigos = [row[0] for row in cursor.fetchall()]
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
+    for codigo in codigos:
+        barcode_img = barcode.get("code128", codigo, writer=ImageWriter())
+        barcode_buffer = io.BytesIO()
+        barcode_img.write(barcode_buffer)
+        barcode_buffer.seek(0)
+        c.drawImage(ImageReader(barcode_buffer), 50, y - 50, width=300, height=50)
+        c.drawString(50, y - 60, codigo)
+        y -= 100
+        if y < 100:
+            c.showPage()
+            y = height - 50
+    c.save()
+    buffer.seek(0)
+    headers = {"Content-Disposition": "attachment; filename=codigos_vehiculos.pdf"}
+    return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
