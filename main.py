@@ -256,19 +256,23 @@ def registrar_evento(entrada: RegistroEntrada):
         print(f"[ERROR /registrar]: {e}")
         raise HTTPException(status_code=500, detail="Error interno en /registrar")
 
-# 🚀 Nuevo endpoint para agregar vehículos
-@app.post("/agregar_vehiculo")
+# 🚀 Nuevo endpoint para agregar vehículos con GET y POST
+@app.api_route("/agregar_vehiculo", methods=["GET", "POST"])
 async def agregar_vehiculo(request: Request):
-    data = await request.json()
-    letra = data.get("letra")
-    digitos = data.get("digitos")
+    if request.method == "POST":
+        data = await request.json()
+        letra = data.get("letra")
+        digitos = data.get("digitos")
+    else:  # GET
+        letra = request.query_params.get("letra")
+        digitos = request.query_params.get("digitos")
 
     # Validar letra
     if letra not in ["P", "C", "M", "T"]:
         raise HTTPException(status_code=400, detail="La letra debe ser P, C, M o T (mayúscula).")
 
     # Validar dígitos
-    if not re.fullmatch(r"\d{4}", digitos):
+    if not re.fullmatch(r"\\d{4}", digitos):
         raise HTTPException(status_code=400, detail="Los dígitos deben ser exactamente 4 números.")
 
     codigo_vehiculo = f"{letra}-{digitos}"
