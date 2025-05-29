@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 import sqlite3
@@ -6,12 +5,10 @@ import re
 
 app = FastAPI()
 
-# Endpoint existente (ejemplo de prueba, no eliminar los que ya tienes)
 @app.get("/")
 async def root():
     return {"message": "Backend funcionando correctamente"}
 
-# Nuevo endpoint para agregar vehículos
 @app.post("/agregar_vehiculo")
 async def agregar_vehiculo(request: Request):
     data = await request.json()
@@ -23,7 +20,7 @@ async def agregar_vehiculo(request: Request):
         raise HTTPException(status_code=400, detail="La letra debe ser P, C, M o T (mayúscula).")
 
     # Validar que los dígitos sean 4 dígitos numéricos
-    if not re.fullmatch(r"\\d{4}", digitos):
+    if not re.fullmatch(r"\d{4}", digitos):
         raise HTTPException(status_code=400, detail="Los dígitos deben ser exactamente 4 números.")
 
     # Formatear el código final
@@ -41,7 +38,7 @@ async def agregar_vehiculo(request: Request):
         conn.close()
         raise HTTPException(status_code=400, detail="El código de vehículo ya existe.")
 
-    # Insertar nuevo vehículo (aquí asumo que la tabla se llama 'vehiculos' y tiene la columna 'codigo')
+    # Insertar nuevo vehículo
     cursor.execute("INSERT INTO vehiculos (codigo) VALUES (?)", (codigo_vehiculo,))
     conn.commit()
     conn.close()
