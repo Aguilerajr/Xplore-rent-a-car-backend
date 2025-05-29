@@ -248,3 +248,12 @@ def procesar_agregar_vehiculo(request: Request, letra: str = Form(...), digitos:
         "request": request,
         "mensaje": mensaje
     })
+
+# 🚀 Nuevo endpoint para listar todos los vehículos
+@app.get("/listar_vehiculos")
+def listar_vehiculos():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT codigo FROM vehiculos")
+        vehiculos = [row[0] for row in cursor.fetchall()]
+    return {"vehiculos": vehiculos}
