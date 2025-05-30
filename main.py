@@ -352,3 +352,7 @@ async def generar_todos_codigos(db: Session = Depends(get_db)):
 def buscar_codigos(q: str, db: Session = Depends(get_db)):
     resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
     return {"resultados": [r[0] for r in resultados]}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
