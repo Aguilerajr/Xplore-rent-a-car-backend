@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import os
 import json
+import barcode
 from datetime import datetime
 from pydantic import BaseModel
 import uvicorn
