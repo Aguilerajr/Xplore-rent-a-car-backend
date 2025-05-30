@@ -5,6 +5,5 @@ python-multipart
 SQLAlchemy
 psycopg2-binary
 reportlab
-setuptools
-wheel
-barcode
+setuptools<81
+python-barcode
