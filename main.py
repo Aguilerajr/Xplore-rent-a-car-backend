@@ -18,6 +18,7 @@ from reportlab.lib.utils import ImageReader
 from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+import os
 
 # ✅ Usamos DATABASE_URL desde entorno
 import os
