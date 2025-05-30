@@ -18,6 +18,8 @@ from reportlab.lib.utils import ImageReader
 from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from barcode import Code128
+from barcode.writer import ImageWriter
 
 # Configuración PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
@@ -306,7 +308,7 @@ def mostrar_creador_codigos(request: Request):
 @app.post("/crear_codigos/generar")
 async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
     buffer = io.BytesIO()
-    barcode.generate("code128", codigo, writer=ImageWriter(), output=buffer)
+    Code128(codigo, writer=ImageWriter()).write(buffer)
     buffer.seek(0)
     headers = {"Content-Disposition": f"attachment; filename={codigo}.png"}
     return StreamingResponse(buffer, media_type="image/png", headers=headers)
