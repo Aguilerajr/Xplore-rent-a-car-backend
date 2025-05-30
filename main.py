@@ -15,14 +15,14 @@ from barcode.writer import ImageWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, func
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import create_engine, Column, String, Integer, DateTime
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+
+# Configuración PostgreSQL
 import os
 
-# ✅ Usamos DATABASE_URL desde entorno
-import os
-
+# Usamos DATABASE_URL del entorno. Si no existe, usamos una conexión local (solo desarrollo)
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Choluteca1@localhost:5432/xplorerentacar")
 
 engine = create_engine(DATABASE_URL)
@@ -53,10 +53,6 @@ class ColaLavado(Base):
     estado = Column(String)
 
 
-# Crear todas las tablas
-Base.metadata.create_all(bind=engine)
-
-
 app = FastAPI()
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
@@ -64,25 +60,7 @@ STATIC_DIR = BASE_DIR / "static"
 JSON_PATH = BASE_DIR / "registros.json"
 
 
-# Inicializar datos iniciales
-def init_db():
-    db = SessionLocal()
-    iniciales = ["CAR001", "CAR002", "VEH0003", "VEH0004"]
-    for cod in iniciales:
-        if not db.query(Vehiculo).filter_by(codigo=cod).first():
-            db.add(Vehiculo(codigo=cod))
-    db.commit()
-    db.close()
-
-
-init_db()
-
-
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
-
-
-# Dependency to get DB session
+# Dependencia para obtener sesión de BD
 def get_db():
     db = SessionLocal()
     try:
@@ -91,9 +69,28 @@ def get_db():
         db.close()
 
 
+# Inicializar datos iniciales
+def init_db():
+    try:
+        db = SessionLocal()
+        Base.metadata.create_all(bind=engine)
+
+        iniciales = ["CAR001", "CAR002", "VEH0003", "VEH0004"]
+        for cod in iniciales:
+            if not db.query(Vehiculo).filter_by(codigo=cod).first():
+                db.add(Vehiculo(codigo=cod))
+        db.commit()
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
-async def startup():
+def startup():
     init_db()
+
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -169,6 +166,7 @@ def clasificar_vehiculo(
         ))
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
+
     vehiculos = db.query(Vehiculo.codigo).all()
     codigos = [v[0] for v in vehiculos]
     completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
@@ -301,6 +299,7 @@ def procesar_agregar_vehiculo(
             db.add(Vehiculo(codigo=codigo_vehiculo))
             db.commit()
             mensaje = f"✅ Vehículo {codigo_vehiculo} agregado correctamente."
+
     return templates.TemplateResponse("agregar_vehiculo.html", {
         "request": request,
         "mensaje": mensaje
@@ -356,3 +355,7 @@ async def generar_todos_codigos(db: Session = Depends(get_db)):
 def buscar_codigos(q: str, db: Session = Depends(get_db)):
     resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
     return {"resultados": [r[0] for r in resultados]}
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
