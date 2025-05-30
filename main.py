@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Form, Request, HTTPException, Depends
-from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-import json
 import os
+import json
 from datetime import datetime
 from pydantic import BaseModel
 import uvicorn
@@ -19,10 +19,7 @@ from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-# Configuración PostgreSQL
-import os
-
-# Usamos DATABASE_URL del entorno. Si no existe, usamos una conexión local (solo desarrollo)
+# Configuración de PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Choluteca1@localhost:5432/xplorerentacar")
 
 engine = create_engine(DATABASE_URL)
@@ -34,14 +31,12 @@ class Vehiculo(Base):
     __tablename__ = "vehiculos"
     codigo = Column(String, primary_key=True)
 
-
 class Clasificacion(Base):
     __tablename__ = "clasificaciones"
     codigo = Column(String, primary_key=True)
     clasificacion = Column(String)
     revisado_por = Column(String)
     tiempo_estimado = Column(Integer)
-
 
 class ColaLavado(Base):
     __tablename__ = "cola_lavado"
@@ -52,13 +47,9 @@ class ColaLavado(Base):
     semana = Column(Integer)
     estado = Column(String)
 
-
 app = FastAPI()
 BASE_DIR = Path(__file__).resolve().parent
-TEMPLATE_DIR = BASE_DIR / "templates"
-STATIC_DIR = BASE_DIR / "static"
 JSON_PATH = BASE_DIR / "registros.json"
-
 
 # Dependencia para obtener sesión de BD
 def get_db():
@@ -68,13 +59,15 @@ def get_db():
     finally:
         db.close()
 
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
+    init_db()
 
 # Inicializar datos iniciales
 def init_db():
+    db = SessionLocal()
     try:
-        db = SessionLocal()
-        Base.metadata.create_all(bind=engine)
-
         iniciales = ["CAR001", "CAR002", "VEH0003", "VEH0004"]
         for cod in iniciales:
             if not db.query(Vehiculo).filter_by(codigo=cod).first():
@@ -83,27 +76,18 @@ def init_db():
     finally:
         db.close()
 
-
-@app.on_event("startup")
-def startup():
-    init_db()
-
-
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
-
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
-
 
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
     db = SessionLocal()
     vehiculos = db.query(Vehiculo.codigo).all()
     codigos = [v[0] for v in vehiculos]
-    # Filtrar los que ya están completados
     completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
     completados_set = {c[0] for c in completados}
     disponibles = [cod for cod in codigos if cod not in completados_set]
@@ -113,7 +97,6 @@ def mostrar_formulario(request: Request):
         "vehiculos": disponibles,
         "mensaje": ""
     })
-
 
 @app.post("/clasificar", response_class=HTMLResponse)
 def clasificar_vehiculo(
