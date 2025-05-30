@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-import sqlite3
 import json
 import os
 from datetime import datetime
@@ -16,33 +15,74 @@ from barcode.writer import ImageWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
+from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, func
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
+from fastapi import Depends
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+# Configuración PostgreSQL
+DATABASE_URL = "postgresql://postgres:Choluteca1@localhost:5432/xplorerentacar"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Definición de modelos
+class Vehiculo(Base):
+    __tablename__ = "vehiculos"
+    codigo = Column(String, primary_key=True)
+
+class Clasificacion(Base):
+    __tablename__ = "clasificaciones"
+    codigo = Column(String, primary_key=True)
+    clasificacion = Column(String)
+    revisado_por = Column(String)
+    tiempo_estimado = Column(Integer)
+
+class ColaLavado(Base):
+    __tablename__ = "cola_lavado"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    codigo_vehiculo = Column(String)
+    clasificacion = Column(String)
+    fecha = Column(DateTime, default=datetime.now)
+    semana = Column(Integer)
+    estado = Column(String)
+
+# Crear tablas si no existen
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
-DB_PATH = BASE_DIR / "registros.db"
 JSON_PATH = BASE_DIR / "registros.json"
 
-with sqlite3.connect(DB_PATH) as conn:
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS vehiculos (
-            codigo TEXT PRIMARY KEY
-        );
-    """)
-    iniciales = [("CAR001",), ("CAR002",), ("VEH0003",), ("VEH0004",)]
-    cursor.executemany("""
-        INSERT OR IGNORE INTO vehiculos (codigo) VALUES (?)
-    """, iniciales)
-    conn.commit()
+# Inicializar datos iniciales
+def init_db():
+    db = SessionLocal()
+    iniciales = ["CAR001", "CAR002", "VEH0003", "VEH0004"]
+    for cod in iniciales:
+        if not db.query(Vehiculo).filter_by(codigo=cod).first():
+            db.add(Vehiculo(codigo=cod))
+    db.commit()
+    db.close()
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+init_db()
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+
+# Dependencia para obtener la sesión de BD
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.on_event("startup")
+async def startup():
+    init_db()
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
@@ -50,23 +90,29 @@ def home(request: Request):
 
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT codigo FROM vehiculos
-            WHERE codigo NOT IN (
-                SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'completado'
-            )
-        """)
-        vehiculos = [row[0] for row in cursor.fetchall()]
+    db = SessionLocal()
+    vehiculos = db.query(Vehiculo.codigo).all()
+    codigos = [v[0] for v in vehiculos]
+
+    # Filtrar los que ya están completados
+    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
+    completados_set = {c[0] for c in completados}
+    disponibles = [cod for cod in codigos if cod not in completados_set]
+    db.close()
     return templates.TemplateResponse("calidad.html", {
         "request": request,
-        "vehiculos": vehiculos,
+        "vehiculos": disponibles,
         "mensaje": ""
     })
 
 @app.post("/clasificar", response_class=HTMLResponse)
-def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str = Form(...), tipo: str = Form(...)):
+def clasificar_vehiculo(
+    request: Request,
+    codigo: str = Form(...),
+    suciedad: str = Form(...),
+    tipo: str = Form(...),
+    db: Session = Depends(get_db)
+):
     clasificacion_map = {
         "Muy sucio": "1",
         "Normal": "2",
@@ -82,44 +128,49 @@ def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str
         "Turismo normal": "E",
         "Turismo pequeño": "F"
     }
+
     grado = clasificacion_map.get(suciedad)
     tipo_vehiculo = tipo_map.get(tipo)
+
     if not grado or not tipo_vehiculo:
         mensaje = "❌ Clasificación inválida"
     else:
         clasificacion = tipo_vehiculo + grado
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS clasificaciones (
-                    codigo TEXT PRIMARY KEY,
-                    clasificacion TEXT,
-                    revisado_por TEXT,
-                    tiempo_estimado INTEGER
-                )
-            """)
-            cursor.execute("""
-                INSERT OR REPLACE INTO clasificaciones (codigo, clasificacion, revisado_por, tiempo_estimado)
-                VALUES (?, ?, ?, ?)
-            """, (codigo, clasificacion, "Calidad", 18))
-            cursor.execute("""
-                INSERT OR REPLACE INTO cola_lavado (codigo_vehiculo, clasificacion, fecha, semana, estado)
-                VALUES (?, ?, DATE('now'), strftime('%W', 'now'), 'en_cola')
-            """, (codigo, clasificacion))
-            conn.commit()
+
+        # Eliminar si ya existe
+        db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
+        db.add(Clasificacion(
+            codigo=codigo,
+            clasificacion=clasificacion,
+            revisado_por="Calidad",
+            tiempo_estimado=18
+        ))
+
+        # Eliminar cola anterior completada
+        db.query(ColaLavado).filter(
+            ColaLavado.codigo_vehiculo == codigo,
+            ColaLavado.estado == "completado"
+        ).delete()
+
+        db.add(ColaLavado(
+            codigo_vehiculo=codigo,
+            clasificacion=clasificacion,
+            fecha=datetime.now(),
+            semana=datetime.now().isocalendar()[1],
+            estado="en_cola"
+        ))
+        db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT codigo FROM vehiculos
-            WHERE codigo NOT IN (
-                SELECT codigo_vehiculo FROM cola_lavado WHERE estado = 'completado'
-            )
-        """)
-        vehiculos = [row[0] for row in cursor.fetchall()]
+
+    vehiculos = db.query(Vehiculo.codigo).all()
+    codigos = [v[0] for v in vehiculos]
+    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
+    completados_set = {c[0] for c in completados}
+    disponibles = [cod for cod in codigos if cod not in completados_set]
+
     return templates.TemplateResponse("calidad.html", {
         "request": request,
-        "vehiculos": vehiculos,
+        "vehiculos": disponibles,
         "mensaje": mensaje
     })
 
@@ -128,15 +179,18 @@ class RegistroEntrada(BaseModel):
     empleado: str
 
 @app.post("/registrar")
-def registrar_evento(entrada: RegistroEntrada):
+def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     vehiculo = entrada.vehiculo
     empleado = entrada.empleado
     datos = cargar_datos_json()
     ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    if not obtener_clasificacion(vehiculo):
+    # Verificar clasificación
+    clasif = db.query(Clasificacion.clasificacion).filter(Clasificacion.codigo == vehiculo).first()
+    if not clasif:
         return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
 
+    # Buscar evento pendiente
     for evento in datos.get(vehiculo, []):
         if evento["empleado"] == empleado and evento["fin"] is None:
             evento["fin"] = ahora
@@ -156,13 +210,12 @@ def registrar_evento(entrada: RegistroEntrada):
             }
             agregar_registro_json(registro_final)
             guardar_datos_json(datos)
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE cola_lavado SET estado = 'completado'
-                    WHERE codigo_vehiculo = ? AND estado = 'en_cola'
-                """, (vehiculo,))
-                conn.commit()
+
+            db.query(ColaLavado).filter(
+                ColaLavado.codigo_vehiculo == vehiculo,
+                ColaLavado.estado == "en_cola"
+            ).update({"estado": "completado"})
+            db.commit()
             return {
                 "status": "checkout",
                 "vehiculo": vehiculo,
@@ -170,11 +223,14 @@ def registrar_evento(entrada: RegistroEntrada):
                 "fin": ahora,
                 "mensaje": f"✅ Check-out realizado y registrado en historial para {vehiculo}"
             }
+
+    # Validar si empleado ya tiene un check-in
     for eventos in datos.values():
         for e in eventos:
             if e["empleado"] == empleado and e["fin"] is None:
                 return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in"}, status_code=400)
 
+    # Registrar nuevo check-in
     if vehiculo not in datos:
         datos[vehiculo] = []
     datos[vehiculo].append({
@@ -183,6 +239,7 @@ def registrar_evento(entrada: RegistroEntrada):
         "fin": None
     })
     guardar_datos_json(datos)
+
     return {
         "status": "checkin",
         "vehiculo": vehiculo,
@@ -208,20 +265,17 @@ def agregar_registro_json(registro):
     data["registros"].append(registro)
     guardar_datos_json(data)
 
-def obtener_clasificacion(vehiculo):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT clasificacion FROM clasificaciones WHERE codigo = ?", (vehiculo,))
-    result = cursor.fetchone()
-    conn.close()
-    return result[0] if result else None
-
 @app.get("/agregar_vehiculo", response_class=HTMLResponse)
 def mostrar_formulario_agregar(request: Request):
     return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
 
 @app.post("/agregar_vehiculo", response_class=HTMLResponse)
-def procesar_agregar_vehiculo(request: Request, letra: str = Form(...), digitos: str = Form(...)):
+def procesar_agregar_vehiculo(
+    request: Request,
+    letra: str = Form(...),
+    digitos: str = Form(...),
+    db: Session = Depends(get_db)
+):
     letra = letra.upper()
     if letra not in ["P", "C", "M", "T"]:
         mensaje = "❌ Letra inválida. Debe ser P, C, M o T (mayúscula)."
@@ -229,28 +283,21 @@ def procesar_agregar_vehiculo(request: Request, letra: str = Form(...), digitos:
         mensaje = "❌ Los dígitos deben ser exactamente 4 números."
     else:
         codigo_vehiculo = f"{letra}-{digitos}"
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM vehiculos WHERE codigo=?", (codigo_vehiculo,))
-            existe = cursor.fetchone()[0]
-            if existe:
-                mensaje = "❌ El código de vehículo ya existe."
-            else:
-                cursor.execute("INSERT INTO vehiculos (codigo) VALUES (?)", (codigo_vehiculo,))
-                conn.commit()
-                mensaje = f"✅ Vehículo {codigo_vehiculo} agregado correctamente."
+        if db.query(Vehiculo).filter_by(codigo=codigo_vehiculo).first():
+            mensaje = "❌ El código de vehículo ya existe."
+        else:
+            db.add(Vehiculo(codigo=codigo_vehiculo))
+            db.commit()
+            mensaje = f"✅ Vehículo {codigo_vehiculo} agregado correctamente."
     return templates.TemplateResponse("agregar_vehiculo.html", {
         "request": request,
         "mensaje": mensaje
     })
 
 @app.get("/listar_vehiculos")
-def listar_vehiculos():
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT codigo FROM vehiculos")
-        vehiculos = [row[0] for row in cursor.fetchall()]
-    return {"vehiculos": vehiculos}
+def listar_vehiculos(db: Session = Depends(get_db)):
+    vehiculos = db.query(Vehiculo.codigo).all()
+    return {"vehiculos": [v[0] for v in vehiculos]}
 
 # Generación de códigos de barras
 @app.get("/crear_codigos", response_class=HTMLResponse)
@@ -266,11 +313,8 @@ async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
     return StreamingResponse(buffer, media_type="image/png", headers=headers)
 
 @app.get("/crear_codigos/generar_todos")
-async def generar_todos_codigos():
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT codigo FROM vehiculos")
-        codigos = [row[0] for row in cursor.fetchall()]
+async def generar_todos_codigos(db: Session = Depends(get_db)):
+    codigos = [v.codigo for v in db.query(Vehiculo).all()]
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -292,10 +336,6 @@ async def generar_todos_codigos():
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 
 @app.get("/buscar_codigos")
-def buscar_codigos(q: str):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT codigo FROM vehiculos WHERE codigo LIKE ?", (f"{q}%",))
-        resultados = [row[0] for row in cursor.fetchall()]
-    return {"resultados": resultados}
-
+def buscar_codigos(q: str, db: Session = Depends(get_db)):
+    resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
+    return {"resultados": [r[0] for r in resultados]}
