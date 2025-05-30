@@ -1,8 +1,8 @@
 fastapi
-uvicorn[standard]
+uvicorn
 jinja2
 python-multipart
-python-barcode
-reportlab
-psycopg2-binary
 SQLAlchemy
+psycopg2-binary
+barcode
+reportlab
