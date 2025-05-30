@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, Request, HTTPException
+from fastapi import FastAPI, Form, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -17,12 +17,13 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
 from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, func
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import sessionmaker, Session
-from fastapi import Depends
 
-# Configuración PostgreSQL
-DATABASE_URL = "postgresql://postgres:Choluteca1@localhost:5432/xplorerentacar"
+# ✅ Usamos DATABASE_URL desde entorno
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Choluteca1@localhost:5432/xplorerentacar")
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -32,12 +33,14 @@ class Vehiculo(Base):
     __tablename__ = "vehiculos"
     codigo = Column(String, primary_key=True)
 
+
 class Clasificacion(Base):
     __tablename__ = "clasificaciones"
     codigo = Column(String, primary_key=True)
     clasificacion = Column(String)
     revisado_por = Column(String)
     tiempo_estimado = Column(Integer)
+
 
 class ColaLavado(Base):
     __tablename__ = "cola_lavado"
@@ -48,14 +51,17 @@ class ColaLavado(Base):
     semana = Column(Integer)
     estado = Column(String)
 
-# Crear tablas si no existen
+
+# Crear todas las tablas
 Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI()
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 JSON_PATH = BASE_DIR / "registros.json"
+
 
 # Inicializar datos iniciales
 def init_db():
@@ -67,12 +73,15 @@ def init_db():
     db.commit()
     db.close()
 
+
 init_db()
+
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
-# Dependencia para obtener la sesión de BD
+
+# Dependency to get DB session
 def get_db():
     db = SessionLocal()
     try:
@@ -80,20 +89,22 @@ def get_db():
     finally:
         db.close()
 
+
 @app.on_event("startup")
 async def startup():
     init_db()
 
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
 
 @app.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request):
     db = SessionLocal()
     vehiculos = db.query(Vehiculo.codigo).all()
     codigos = [v[0] for v in vehiculos]
-
     # Filtrar los que ya están completados
     completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
     completados_set = {c[0] for c in completados}
@@ -104,6 +115,7 @@ def mostrar_formulario(request: Request):
         "vehiculos": disponibles,
         "mensaje": ""
     })
+
 
 @app.post("/clasificar", response_class=HTMLResponse)
 def clasificar_vehiculo(
@@ -136,8 +148,6 @@ def clasificar_vehiculo(
         mensaje = "❌ Clasificación inválida"
     else:
         clasificacion = tipo_vehiculo + grado
-
-        # Eliminar si ya existe
         db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
         db.add(Clasificacion(
             codigo=codigo,
@@ -145,13 +155,10 @@ def clasificar_vehiculo(
             revisado_por="Calidad",
             tiempo_estimado=18
         ))
-
-        # Eliminar cola anterior completada
         db.query(ColaLavado).filter(
             ColaLavado.codigo_vehiculo == codigo,
             ColaLavado.estado == "completado"
         ).delete()
-
         db.add(ColaLavado(
             codigo_vehiculo=codigo,
             clasificacion=clasificacion,
@@ -161,7 +168,6 @@ def clasificar_vehiculo(
         ))
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
-
     vehiculos = db.query(Vehiculo.codigo).all()
     codigos = [v[0] for v in vehiculos]
     completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
@@ -174,9 +180,11 @@ def clasificar_vehiculo(
         "mensaje": mensaje
     })
 
+
 class RegistroEntrada(BaseModel):
     vehiculo: str
     empleado: str
+
 
 @app.post("/registrar")
 def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
@@ -185,12 +193,10 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     datos = cargar_datos_json()
     ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Verificar clasificación
     clasif = db.query(Clasificacion.clasificacion).filter(Clasificacion.codigo == vehiculo).first()
     if not clasif:
         return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
 
-    # Buscar evento pendiente
     for evento in datos.get(vehiculo, []):
         if evento["empleado"] == empleado and evento["fin"] is None:
             evento["fin"] = ahora
@@ -210,7 +216,6 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
             }
             agregar_registro_json(registro_final)
             guardar_datos_json(datos)
-
             db.query(ColaLavado).filter(
                 ColaLavado.codigo_vehiculo == vehiculo,
                 ColaLavado.estado == "en_cola"
@@ -224,13 +229,14 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
                 "mensaje": f"✅ Check-out realizado y registrado en historial para {vehiculo}"
             }
 
-    # Validar si empleado ya tiene un check-in
     for eventos in datos.values():
         for e in eventos:
             if e["empleado"] == empleado and e["fin"] is None:
-                return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in"}, status_code=400)
+                return JSONResponse(
+                    content={"status": "error", "message": f"{empleado} ya tiene un check-in"},
+                    status_code=400
+                )
 
-    # Registrar nuevo check-in
     if vehiculo not in datos:
         datos[vehiculo] = []
     datos[vehiculo].append({
@@ -248,15 +254,18 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
         "mensaje": f"🚗 Check-in registrado para {vehiculo} por {empleado}"
     }
 
+
 def cargar_datos_json():
     if os.path.exists(JSON_PATH):
         with open(JSON_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
+
 def guardar_datos_json(data):
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
 
 def agregar_registro_json(registro):
     data = cargar_datos_json()
@@ -265,9 +274,11 @@ def agregar_registro_json(registro):
     data["registros"].append(registro)
     guardar_datos_json(data)
 
+
 @app.get("/agregar_vehiculo", response_class=HTMLResponse)
 def mostrar_formulario_agregar(request: Request):
     return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
+
 
 @app.post("/agregar_vehiculo", response_class=HTMLResponse)
 def procesar_agregar_vehiculo(
@@ -294,15 +305,18 @@ def procesar_agregar_vehiculo(
         "mensaje": mensaje
     })
 
+
 @app.get("/listar_vehiculos")
 def listar_vehiculos(db: Session = Depends(get_db)):
     vehiculos = db.query(Vehiculo.codigo).all()
     return {"vehiculos": [v[0] for v in vehiculos]}
 
+
 # Generación de códigos de barras
 @app.get("/crear_codigos", response_class=HTMLResponse)
 def mostrar_creador_codigos(request: Request):
     return templates.TemplateResponse("crear_codigos.html", {"request": request})
+
 
 @app.post("/crear_codigos/generar")
 async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
@@ -311,6 +325,7 @@ async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
     buffer.seek(0)
     headers = {"Content-Disposition": f"attachment; filename={codigo}.png"}
     return StreamingResponse(buffer, media_type="image/png", headers=headers)
+
 
 @app.get("/crear_codigos/generar_todos")
 async def generar_todos_codigos(db: Session = Depends(get_db)):
@@ -334,6 +349,7 @@ async def generar_todos_codigos(db: Session = Depends(get_db)):
     buffer.seek(0)
     headers = {"Content-Disposition": "attachment; filename=codigos_vehiculos.pdf"}
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
+
 
 @app.get("/buscar_codigos")
 def buscar_codigos(q: str, db: Session = Depends(get_db)):
