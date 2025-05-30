@@ -5,13 +5,12 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import os
 import json
-import barcode
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 import uvicorn
 import re
 import io
-import barcode
+from barcode import Code128
 from barcode.writer import ImageWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -19,8 +18,6 @@ from reportlab.lib.utils import ImageReader
 from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from barcode import Code128
-from barcode.writer import ImageWriter
 
 # Configuración PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
@@ -46,7 +43,7 @@ class ColaLavado(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     codigo_vehiculo = Column(String)
     clasificacion = Column(String)
-    fecha = Column(DateTime, default=datetime.now)
+    fecha = Column(DateTime, default=datetime.utcnow)  # Usamos UTC
     semana = Column(Integer)
     estado = Column(String)
 
@@ -148,8 +145,8 @@ def clasificar_vehiculo(
         db.add(ColaLavado(
             codigo_vehiculo=codigo,
             clasificacion=clasificacion,
-            fecha=datetime.now(),
-            semana=datetime.now().isocalendar()[1],
+            fecha=datetime.utcnow(),  # Usamos UTC
+            semana=datetime.utcnow().isocalendar()[1],
             estado="en_cola"
         ))
         db.commit()
@@ -317,15 +314,14 @@ async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
 
 @app.get("/crear_codigos/generar_todos")
 async def generar_todos_codigos(db: Session = Depends(get_db)):
-    codigos = [v.codigo for v in db.query(Vehiculo).all()]
+    codigos = [v.codigo for v in db.query(Vehiculo.codigo).all()]
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     y = height - 50
     for codigo in codigos:
-        barcode_img = barcode.get("code128", codigo, writer=ImageWriter())
         barcode_buffer = io.BytesIO()
-        barcode_img.write(barcode_buffer)
+        Code128(codigo, writer=ImageWriter()).write(barcode_buffer)
         barcode_buffer.seek(0)
         c.drawImage(ImageReader(barcode_buffer), 50, y - 50, width=300, height=50)
         c.drawString(50, y - 60, codigo)
