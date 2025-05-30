@@ -13,8 +13,14 @@
         button:hover { background: #218838; }
         .mensaje { margin-top: 1em; font-weight: bold; color: green; }
         .error { color: red; }
-        a { display: inline-block; margin-top: 1em; color: #007bff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
+        .regresar {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .regresar:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -41,7 +47,8 @@
             <button type="submit">Agregar</button>
         </form>
 
-        <a href="/">Regresar al inicio</a>
+        <!-- Ajuste: botón de regreso con el mismo estilo -->
+        <a href="/" class="regresar">Regresar al inicio</a>
     </div>
 </body>
 </html>
