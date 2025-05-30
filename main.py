@@ -1,28 +1,32 @@
 from fastapi import FastAPI, Form, Request, Depends, HTTPException
-from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import os
-import json
+from sqlalchemy import create_engine, Column, String, Integer, DateTime
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from datetime import datetime
-from pydantic import BaseModel
-import re
+import json
+import barcode
+from barcode.writer import ImageWriter
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
-from sqlalchemy import create_engine, Column, String, Integer, DateTime
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.ext.declarative import declarative_base
-from barcode import get_barcode_class
-from barcode.writer import ImageWriter
+import re
+from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
 
 # Configuración PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# ✅ Usamos la nueva forma de declarative_base()
 Base = declarative_base()
 
 # Definición de modelos
@@ -46,27 +50,10 @@ class ColaLavado(Base):
     semana = Column(Integer)
     estado = Column(String)
 
-app = FastAPI()
-BASE_DIR = Path(__file__).resolve().parent
-TEMPLATE_DIR = BASE_DIR / "templates"
-STATIC_DIR = BASE_DIR / "static"
-JSON_PATH = BASE_DIR / "registros.json"
+# Crear tablas si no existen
+Base.metadata.create_all(bind=engine)
 
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-@app.on_event("startup")
-async def startup():
-    Base.metadata.create_all(bind=engine)
-    init_db()
-
+# Inicializar datos iniciales
 def init_db():
     db = SessionLocal()
     try:
@@ -78,7 +65,33 @@ def init_db():
     finally:
         db.close()
 
-# Rutas principales
+# Manejador lifespan (nuevo sistema de eventos)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+# Iniciar app con lifespan
+app = FastAPI(lifespan=lifespan)
+
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATE_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
+JSON_PATH = BASE_DIR / "registros.json"
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+
+# Dependencia para obtener sesión de BD
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Rutas...
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -154,15 +167,18 @@ def clasificar_vehiculo(
     completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
     completados_set = {c[0] for c in completados}
     disponibles = [cod for cod in codigos if cod not in completados_set]
+
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": disponibles,
         "mensaje": mensaje
     })
 
+
 class RegistroEntrada(BaseModel):
     vehiculo: str
     empleado: str
+
 
 @app.post("/registrar")
 def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
@@ -232,15 +248,18 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
         "mensaje": f"🚗 Check-in registrado para {vehiculo} por {empleado}"
     }
 
+
 def cargar_datos_json():
     if os.path.exists(JSON_PATH):
         with open(JSON_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
+
 def guardar_datos_json(data):
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
 
 def agregar_registro_json(registro):
     data = cargar_datos_json()
@@ -249,9 +268,11 @@ def agregar_registro_json(registro):
     data["registros"].append(registro)
     guardar_datos_json(data)
 
+
 @app.get("/agregar_vehiculo", response_class=HTMLResponse)
 def mostrar_formulario_agregar(request: Request):
     return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
+
 
 @app.post("/agregar_vehiculo", response_class=HTMLResponse)
 def procesar_agregar_vehiculo(
@@ -279,24 +300,29 @@ def procesar_agregar_vehiculo(
         "mensaje": mensaje
     })
 
+
 @app.get("/listar_vehiculos")
 def listar_vehiculos(db: Session = Depends(get_db)):
     vehiculos = db.query(Vehiculo.codigo).all()
     return {"vehiculos": [v[0] for v in vehiculos]}
+
 
 # Generación de códigos de barras
 @app.get("/crear_codigos", response_class=HTMLResponse)
 def mostrar_creador_codigos(request: Request):
     return templates.TemplateResponse("crear_codigos.html", {"request": request})
 
+
 @app.post("/crear_codigos/generar")
 async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
-    code128_class = get_barcode_class("code128")
     buffer = io.BytesIO()
-    code128_class(codigo, writer=ImageWriter()).write(buffer)
+    code128_class = barcode.get_barcode_class("code128")
+    code128_instance = code128_class(codigo, writer=ImageWriter())
+    code128_instance.write(buffer)
     buffer.seek(0)
     headers = {"Content-Disposition": f"attachment; filename={codigo}.png"}
     return StreamingResponse(buffer, media_type="image/png", headers=headers)
+
 
 @app.get("/crear_codigos/generar_todos")
 async def generar_todos_codigos(db: Session = Depends(get_db)):
@@ -305,7 +331,7 @@ async def generar_todos_codigos(db: Session = Depends(get_db)):
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     y = height - 50
-    code128_class = get_barcode_class("code128")
+    code128_class = barcode.get_barcode_class("code128")
     for codigo in codigos:
         barcode_buffer = io.BytesIO()
         code128_class(codigo, writer=ImageWriter()).write(barcode_buffer)
@@ -320,6 +346,7 @@ async def generar_todos_codigos(db: Session = Depends(get_db)):
     buffer.seek(0)
     headers = {"Content-Disposition": "attachment; filename=codigos_vehiculos.pdf"}
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
+
 
 @app.get("/buscar_codigos")
 def buscar_codigos(q: str, db: Session = Depends(get_db)):
