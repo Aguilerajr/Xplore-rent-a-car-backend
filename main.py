@@ -1,28 +1,30 @@
 from fastapi import FastAPI, Form, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import os
-from sqlalchemy import create_engine, Column, String, Integer, DateTime
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+import json
 from datetime import datetime
+from pydantic import BaseModel
+import re
+import io
 import barcode
 from barcode.writer import ImageWriter
-import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
-import re
-from pydantic import BaseModel
-from contextlib import asynccontextmanager
+from sqlalchemy import create_engine, Column, String, Integer, DateTime
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
+# Configuración PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
+# Definición de modelos
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
     codigo = Column(String, primary_key=True)
@@ -54,6 +56,7 @@ class RegistroLavado(Base):
     tiempo_estimado = Column(Integer)
     eficiencia = Column(String)
 
+# Crear tablas si no existen
 Base.metadata.create_all(bind=engine)
 
 def init_db():
@@ -77,6 +80,7 @@ app = FastAPI(lifespan=lifespan)
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
+JSON_PATH = BASE_DIR / "registros.json"
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
@@ -138,6 +142,7 @@ def clasificar_vehiculo(
         mensaje = "❌ Clasificación inválida"
     else:
         clasificacion = tipo_vehiculo + grado
+        # Eliminar si ya existe
         db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
         db.add(Clasificacion(
             codigo=codigo,
@@ -145,6 +150,7 @@ def clasificar_vehiculo(
             revisado_por="Calidad",
             tiempo_estimado=18
         ))
+        # Eliminar cola anterior completada
         db.query(ColaLavado).filter(
             ColaLavado.codigo_vehiculo == codigo,
             ColaLavado.estado == "completado"
@@ -158,6 +164,7 @@ def clasificar_vehiculo(
         ))
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
+    
     vehiculos = db.query(Vehiculo.codigo).all()
     codigos = [v[0] for v in vehiculos]
     completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
@@ -170,78 +177,120 @@ def clasificar_vehiculo(
         "mensaje": mensaje
     })
 
+
 class RegistroEntrada(BaseModel):
     vehiculo: str
     empleado: str
+
 
 @app.post("/registrar")
 def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     vehiculo = entrada.vehiculo
     empleado = entrada.empleado
-    ahora = datetime.utcnow()
+    datos = cargar_datos_json()
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     clasif = db.query(Clasificacion.clasificacion).filter(Clasificacion.codigo == vehiculo).first()
     if not clasif:
         return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
 
-    abierto = db.query(RegistroLavado).filter(
+    # Buscar si ya hay un evento abierto para este empleado en otro vehículo
+    registro_abierto_otro = db.query(RegistroLavado).filter(
         RegistroLavado.empleado == empleado,
-        RegistroLavado.fin == None,
+        RegistroLavado.fin.is_(None),
         RegistroLavado.vehiculo != vehiculo
     ).first()
-    if abierto:
-        return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in en otro vehículo"}, status_code=400)
+    if registro_abierto_otro:
+        return JSONResponse(
+            content={"status": "error", "message": f"{empleado} ya tiene un check-in en otro vehículo"},
+            status_code=400
+        )
 
+    # Buscar si ya hay un evento abierto para este vehículo y empleado
     registro_abierto = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == vehiculo,
         RegistroLavado.empleado == empleado,
-        RegistroLavado.fin == None
+        RegistroLavado.fin.is_(None)
     ).first()
+
     if registro_abierto:
         registro_abierto.fin = ahora
-        tiempo_real = int((ahora - registro_abierto.inicio).total_seconds() / 60)
+        tiempo_inicio = datetime.strptime(registro_abierto.inicio.strftime("%Y-%m-%d %H:%M:%S"), "%Y-%m-%d %H:%M:%S")
+        tiempo_fin = datetime.strptime(ahora, "%Y-%m-%d %H:%M:%S")
+        tiempo_real = int((tiempo_fin - tiempo_inicio).total_seconds() / 60)
         tiempo_estimado = 18
         eficiencia = f"{int((tiempo_estimado / tiempo_real) * 100)}%" if tiempo_real else "N/A"
         registro_abierto.tiempo_real = tiempo_real
         registro_abierto.tiempo_estimado = tiempo_estimado
         registro_abierto.eficiencia = eficiencia
-
-        quedan_lavando = db.query(RegistroLavado).filter(
-            RegistroLavado.vehiculo == vehiculo,
-            RegistroLavado.fin == None
-        ).first()
-        if not quedan_lavando:
-            db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == vehiculo).delete()
-            db.query(Clasificacion).filter(Clasificacion.codigo == vehiculo).delete()
-        else:
-            db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == vehiculo).update({"estado": "completado"})
         db.commit()
+
+        # Verificar si hay otros empleados trabajando en este vehículo
+        otros_trabajando = db.query(RegistroLavado).filter(
+            RegistroLavado.vehiculo == vehiculo,
+            RegistroLavado.fin.is_(None),
+            RegistroLavado.id != registro_abierto.id
+        ).first()
+
+        if not otros_trabajando:
+            # No hay más empleados trabajando → eliminar de cola y clasificaciones
+            db.query(ColaLavado).filter(
+                ColaLavado.codigo_vehiculo == vehiculo,
+                ColaLavado.estado == "en_cola"
+            ).delete()
+            db.query(Clasificacion).filter(Clasificacion.codigo == vehiculo).delete()
+            db.commit()
 
         return {
             "status": "checkout",
             "vehiculo": vehiculo,
             "empleado": empleado,
-            "fin": ahora.isoformat(),
-            "mensaje": f"✅ Check-out realizado para {vehiculo}"
+            "fin": ahora,
+            "mensaje": f"✅ Check-out realizado y registrado en historial para {vehiculo}"
         }
 
-    nuevo = RegistroLavado(
+    # Registrar nuevo check-in
+    nuevo_registro = RegistroLavado(
         vehiculo=vehiculo,
         empleado=empleado,
-        inicio=ahora
+        inicio=datetime.now()
     )
-    db.add(nuevo)
+    db.add(nuevo_registro)
     db.commit()
+
     return {
         "status": "checkin",
         "vehiculo": vehiculo,
         "empleado": empleado,
-        "inicio": ahora.isoformat(),
-        "mensaje": f"🚗 Check-in registrado para {vehiculo}"}
+        "inicio": ahora,
+        "mensaje": f"🚗 Check-in registrado para {vehiculo} por {empleado}"
+    }
+
+
+def cargar_datos_json():
+    if os.path.exists(JSON_PATH):
+        with open(JSON_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def guardar_datos_json(data):
+    with open(JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+def agregar_registro_json(registro):
+    data = cargar_datos_json()
+    if "registros" not in data:
+        data["registros"] = []
+    data["registros"].append(registro)
+    guardar_datos_json(data)
+
 
 @app.get("/agregar_vehiculo", response_class=HTMLResponse)
 def mostrar_formulario_agregar(request: Request):
     return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
+
 
 @app.post("/agregar_vehiculo", response_class=HTMLResponse)
 def procesar_agregar_vehiculo(
@@ -269,14 +318,18 @@ def procesar_agregar_vehiculo(
         "mensaje": mensaje
     })
 
+
 @app.get("/listar_vehiculos")
 def listar_vehiculos(db: Session = Depends(get_db)):
     vehiculos = db.query(Vehiculo.codigo).all()
     return {"vehiculos": [v[0] for v in vehiculos]}
 
+
+# Generación de códigos de barras
 @app.get("/crear_codigos", response_class=HTMLResponse)
 def mostrar_creador_codigos(request: Request):
     return templates.TemplateResponse("crear_codigos.html", {"request": request})
+
 
 @app.post("/crear_codigos/generar")
 async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
@@ -288,6 +341,7 @@ async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
     headers = {"Content-Disposition": f"attachment; filename={codigo}.png"}
     return StreamingResponse(buffer, media_type="image/png", headers=headers)
 
+
 @app.get("/crear_codigos/generar_todos")
 async def generar_todos_codigos(db: Session = Depends(get_db)):
     codigos = [v.codigo for v in db.query(Vehiculo.codigo).all()]
@@ -296,6 +350,7 @@ async def generar_todos_codigos(db: Session = Depends(get_db)):
     width, height = letter
     y = height - 50
     code128_class = barcode.get_barcode_class("code128")
+
     for codigo in codigos:
         barcode_buffer = io.BytesIO()
         code128_class(codigo, writer=ImageWriter()).write(barcode_buffer)
@@ -311,11 +366,13 @@ async def generar_todos_codigos(db: Session = Depends(get_db)):
     headers = {"Content-Disposition": "attachment; filename=codigos_vehiculos.pdf"}
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 
+
 @app.get("/buscar_codigos")
 def buscar_codigos(q: str, db: Session = Depends(get_db)):
     resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
     return {"resultados": [r[0] for r in resultados]}
 
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
