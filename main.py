@@ -25,6 +25,40 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# Diccionario de tiempos estimados
+TIEMPOS_ESTIMADOS = {
+    "A1": {"tiempo_estimado": 120},  # 02:00 (en minutos)
+    "A2": {"tiempo_estimado": 60},   # 01:00
+    "A3": {"tiempo_estimado": 30},   # 00:30
+    "A4": {"tiempo_estimado": 240},  # 04:00
+    "A5": {"tiempo_estimado": 7},    # 00:07
+    "B1": {"tiempo_estimado": 100},  # 01:40
+    "B2": {"tiempo_estimado": 50},   # 00:50
+    "B3": {"tiempo_estimado": 25},   # 00:25
+    "B4": {"tiempo_estimado": 240},  # 04:00
+    "B5": {"tiempo_estimado": 7},    # 00:07
+    "C1": {"tiempo_estimado": 100},  # 01:40
+    "C2": {"tiempo_estimado": 60},   # 01:00
+    "C3": {"tiempo_estimado": 30},   # 00:30
+    "C4": {"tiempo_estimado": 240},  # 04:00
+    "C5": {"tiempo_estimado": 7},    # 00:07
+    "D1": {"tiempo_estimado": 120},  # 02:00
+    "D2": {"tiempo_estimado": 60},   # 01:00
+    "D3": {"tiempo_estimado": 30},   # 00:30
+    "D4": {"tiempo_estimado": 240},  # 04:00
+    "D5": {"tiempo_estimado": 7},    # 00:07
+    "E1": {"tiempo_estimado": 90},   # 01:30
+    "E2": {"tiempo_estimado": 60},   # 01:00
+    "E3": {"tiempo_estimado": 40},   # 00:40
+    "E4": {"tiempo_estimado": 240},  # 04:00
+    "E5": {"tiempo_estimado": 7},    # 00:07
+    "F1": {"tiempo_estimado": 50},   # 00:50
+    "F2": {"tiempo_estimado": 35},   # 00:35
+    "F3": {"tiempo_estimado": 20},   # 00:20
+    "F4": {"tiempo_estimado": 240},  # 04:00
+    "F5": {"tiempo_estimado": 7},    # 00:07
+}
+
 # Definición de modelos
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
@@ -153,12 +187,14 @@ def clasificar_vehiculo(
         mensaje = "❌ Clasificación inválida"
     else:
         clasificacion = tipo_vehiculo + grado
+        tiempo_estimado = TIEMPOS_ESTIMADOS.get(clasificacion, {}).get("tiempo_estimado", 18)  # Valor predeterminado de 18 minutos
+
         db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
         db.add(Clasificacion(
             codigo=codigo,
             clasificacion=clasificacion,
             revisado_por="Calidad",
-            tiempo_estimado=18
+            tiempo_estimado=tiempo_estimado
         ))
         db.query(ColaLavado).filter(
             ColaLavado.codigo_vehiculo == codigo,
@@ -173,13 +209,11 @@ def clasificar_vehiculo(
         ))
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
-
     vehiculos = db.query(Vehiculo.codigo).all()
     codigos = [v[0] for v in vehiculos]
     completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
     completados_set = {c[0] for c in completados}
     disponibles = [cod for cod in codigos if cod not in completados_set]
-
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": disponibles,
