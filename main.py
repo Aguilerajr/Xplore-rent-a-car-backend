@@ -20,7 +20,6 @@ from fastapi.responses import JSONResponse
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-# Configuración PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -179,6 +178,14 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     if not clasif:
         return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
 
+    for eventos in datos.values():
+        for e in eventos:
+            if e["empleado"] == empleado and e["fin"] is None and e["vehiculo"] != vehiculo:
+                return JSONResponse(
+                    content={"status": "error", "message": f"{empleado} ya tiene un check-in en otro vehículo"},
+                    status_code=400
+                )
+
     for evento in datos.get(vehiculo, []):
         if evento["empleado"] == empleado and evento["fin"] is None:
             evento["fin"] = ahora
@@ -199,13 +206,16 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
             agregar_registro_json(registro_final)
             guardar_datos_json(datos)
 
-            # 🚨 Eliminamos el registro de la cola de lavado si nadie más está lavando
-            otros_lavando = any(e["fin"] is None for e in datos.get(vehiculo, []))
-            if not otros_lavando:
+            quedan_lavando = any(e["fin"] is None for e in datos.get(vehiculo, []))
+            if not quedan_lavando:
+                db.query(ColaLavado).filter(
+                    ColaLavado.codigo_vehiculo == vehiculo
+                ).delete()
+            else:
                 db.query(ColaLavado).filter(
                     ColaLavado.codigo_vehiculo == vehiculo,
                     ColaLavado.estado == "en_cola"
-                ).delete()
+                ).update({"estado": "completado"})
             db.commit()
 
             return {
@@ -213,16 +223,8 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
                 "vehiculo": vehiculo,
                 "empleado": empleado,
                 "fin": ahora,
-                "mensaje": f"✅ Check-out completado y vehículo eliminado de la cola si estaba libre"
+                "mensaje": f"✅ Check-out realizado. {vehiculo} eliminado de la cola si estaba libre."
             }
-
-    for eventos in datos.values():
-        for e in eventos:
-            if e["empleado"] == empleado and e["fin"] is None:
-                return JSONResponse(
-                    content={"status": "error", "message": f"{empleado} ya tiene un check-in"},
-                    status_code=400
-                )
 
     if vehiculo not in datos:
         datos[vehiculo] = []
