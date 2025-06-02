@@ -193,7 +193,10 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
 
     clasif = db.query(Clasificacion.clasificacion).filter(Clasificacion.codigo == vehiculo).first()
     if not clasif:
-        return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
+        return JSONResponse(
+    content={"status": "error", "message": "Vehículo no clasificado"},
+    status_code=400
+)
 
     # Buscar si ya hay un evento abierto para este empleado en otro vehículo
     registro_abierto_otro = db.query(RegistroLavado).filter(
