@@ -237,8 +237,7 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
         "vehiculo": vehiculo,
         "empleado": empleado,
         "inicio": ahora.isoformat(),
-        "mensaje": f"🚗 Check-in registrado para {vehiculo}"
-    }
+        "mensaje": f"🚗 Check-in registrado para {vehiculo}"}
 
 @app.get("/agregar_vehiculo", response_class=HTMLResponse)
 def mostrar_formulario_agregar(request: Request):
