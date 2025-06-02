@@ -184,7 +184,6 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     if not clasif:
         return JSONResponse(content={"status": "error", "message": f"{vehiculo} no clasificado"}, status_code=400)
 
-    # Check si ya tiene un check-in en otro vehículo
     abierto = db.query(RegistroLavado).filter(
         RegistroLavado.empleado == empleado,
         RegistroLavado.fin == None,
@@ -193,7 +192,6 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     if abierto:
         return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in en otro vehículo"}, status_code=400)
 
-    # Si ya tiene un check-in, cerrar sesión
     registro_abierto = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == vehiculo,
         RegistroLavado.empleado == empleado,
@@ -208,13 +206,13 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
         registro_abierto.tiempo_estimado = tiempo_estimado
         registro_abierto.eficiencia = eficiencia
 
-        # Eliminar de la cola si nadie más lo está lavando
         quedan_lavando = db.query(RegistroLavado).filter(
             RegistroLavado.vehiculo == vehiculo,
             RegistroLavado.fin == None
         ).first()
         if not quedan_lavando:
             db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == vehiculo).delete()
+            db.query(Clasificacion).filter(Clasificacion.codigo == vehiculo).delete()
         else:
             db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == vehiculo).update({"estado": "completado"})
         db.commit()
@@ -227,7 +225,6 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
             "mensaje": f"✅ Check-out realizado para {vehiculo}"
         }
 
-    # Check-in
     nuevo = RegistroLavado(
         vehiculo=vehiculo,
         empleado=empleado,
