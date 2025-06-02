@@ -5,12 +5,12 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 import re
 import io
-from barcode.writer import ImageWriter
 import barcode
+from barcode.writer import ImageWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
@@ -61,10 +61,6 @@ class RegistroLavado(Base):
     eficiencia = Column(String)
 
 
-# Crear tablas si no existen
-Base.metadata.create_all(bind=engine)
-
-
 def init_db():
     db = SessionLocal()
     try:
@@ -79,6 +75,8 @@ def init_db():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Crear tablas si no existen
+    Base.metadata.create_all(bind=engine)
     init_db()
     yield
 
@@ -94,6 +92,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 
+# Dependencia para obtener sesión de BD
 def get_db():
     db = SessionLocal()
     try:
@@ -174,8 +173,7 @@ def clasificar_vehiculo(
         ))
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
-    
-    # Recargar vehículos disponibles
+
     vehiculos = db.query(Vehiculo.codigo).all()
     codigos = [v[0] for v in vehiculos]
     completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
@@ -199,16 +197,13 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     vehiculo = entrada.vehiculo
     empleado = entrada.empleado
     ahora = datetime.utcnow()
-
+    
     # Verificar clasificación
     clasif = db.query(Clasificacion.clasificacion).filter(Clasificacion.codigo == vehiculo).first()
     if not clasif:
-        return JSONResponse(
-            content={"status": "error", "message": "Vehículo no clasificado"},
-            status_code=400
-        )
+        return JSONResponse(content={"status": "error", "message": "Vehículo no clasificado"}, status_code=400)
 
-    # Validar si el empleado tiene check-in en otro vehículo
+    # Validar check-in en otro vehículo
     registro_abierto_otro = db.query(RegistroLavado).filter(
         RegistroLavado.empleado == empleado,
         RegistroLavado.fin.is_(None),
@@ -220,7 +215,7 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
             status_code=400
         )
 
-    # Buscar si hay un check-in abierto en este vehículo
+    # Validar check-in en este vehículo
     registro_abierto = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == vehiculo,
         RegistroLavado.empleado == empleado,
@@ -238,7 +233,7 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
         registro_abierto.eficiencia = eficiencia
         db.commit()
 
-        # Verificar si alguien más está trabajando en este vehículo
+        # Verificar si alguien más sigue trabajando en el vehículo
         otros_trabajando = db.query(RegistroLavado).filter(
             RegistroLavado.vehiculo == vehiculo,
             RegistroLavado.fin.is_(None),
@@ -246,7 +241,7 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
         ).first()
 
         if not otros_trabajando:
-            # ❌ Eliminar de ambas tablas si nadie más está trabajando
+            # Eliminar de ambas tablas
             db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == vehiculo).delete()
             db.query(Clasificacion).filter(Clasificacion.codigo == vehiculo).delete()
             db.commit()
@@ -381,3 +376,8 @@ async def generar_todos_codigos(db: Session = Depends(get_db)):
 def buscar_codigos(q: str, db: Session = Depends(get_db)):
     resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
     return {"resultados": [r[0] for r in resultados]}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
