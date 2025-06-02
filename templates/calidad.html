@@ -27,7 +27,7 @@
             display: block;
             margin-top: 15px;
         }
-        select, input[type="submit"] {
+        select, input[type="submit"], input[type="text"] {
             width: 100%;
             padding: 10px;
             margin-top: 5px;
@@ -65,6 +65,20 @@
         .regresar:hover {
             text-decoration: underline;
         }
+        ul#sugerencias {
+            list-style: none;
+            padding: 0;
+            margin: 0.5em 0 0;
+            background: #eee;
+            border-radius: 4px;
+        }
+        ul#sugerencias li {
+            padding: 0.5em;
+            cursor: pointer;
+        }
+        ul#sugerencias li:hover {
+            background: #ddd;
+        }
     </style>
 </head>
 <body>
@@ -73,15 +87,8 @@
 
     <form action="/clasificar" method="post">
         <label for="codigo">Código:</label>
-        <select name="codigo" id="codigo" required>
-            {% if vehiculos %}
-                {% for codigo in vehiculos %}
-                    <option value="{{ codigo }}">{{ codigo }}</option>
-                {% endfor %}
-            {% else %}
-                <option value="">No hay vehículos</option>
-            {% endif %}
-        </select>
+        <input type="text" name="codigo" id="codigo" placeholder="Ej: P-1234" required autocomplete="off">
+        <ul id="sugerencias"></ul>
 
         <label for="suciedad">Nivel de suciedad:</label>
         <select name="suciedad" required>
@@ -124,6 +131,34 @@
 
     <!-- Botón para regresar al inicio -->
     <a class="regresar" href="/">Regresar al inicio</a>
+
+    <!-- Script para autocompletar código -->
+    <script>
+        const input = document.getElementById('codigo');
+        const sugerencias = document.getElementById('sugerencias');
+
+        input.addEventListener('input', () => {
+            const valor = input.value;
+            if (valor.length > 0) {
+                fetch(`/buscar_codigos?q=${valor}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        sugerencias.innerHTML = '';
+                        data.resultados.forEach(codigo => {
+                            const li = document.createElement('li');
+                            li.textContent = codigo;
+                            li.addEventListener('click', () => {
+                                input.value = codigo;
+                                sugerencias.innerHTML = '';
+                            });
+                            sugerencias.appendChild(li);
+                        });
+                    });
+            } else {
+                sugerencias.innerHTML = '';
+            }
+        });
+    </script>
 
 </body>
 </html>
