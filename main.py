@@ -119,13 +119,13 @@ def get_db_empleados():  # Para empleados
     finally:
         db.close()
 
-# 🔷 Endpoint para verificar empleado (login)
+# 🔷 Endpoint para verificar empleado (login corregido)
 @app.get("/verificar_empleado")
 def verificar_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
-    existe = db.query(Empleado).filter_by(codigo=codigo).first()
-    return {"valido": bool(existe)}
-
-# 🔷 Las demás rutas (calidad, clasificar, registrar, etc.) quedan exactamente igual a lo que ya tienes…
+    if not re.fullmatch(r"\d{4}", codigo):
+        return {"valido": False}
+    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
+    return {"valido": bool(empleado)}
 
 # 🔷 RUTAS DE EMPLEADOS (agregar empleado HTML)
 @app.get("/agregar_empleado", response_class=HTMLResponse)
