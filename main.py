@@ -23,7 +23,7 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# BASE DE DATOS EMPLEADOS (login)
+# BASE DE DATOS EMPLEADOS
 DATABASE_URL_EMPLEADOS = "postgresql://postgres:gFQOssQuCNFeLZqvKBNcERsRrxWEiZlJ@shuttle.proxy.rlwy.net:42664/railway"
 engine_empleados = create_engine(DATABASE_URL_EMPLEADOS)
 SessionEmpleados = sessionmaker(autocommit=False, autoflush=False, bind=engine_empleados)
@@ -70,23 +70,12 @@ class RegistroLavado(Base):
     tiempo_estimado = Column(Integer)
     eficiencia = Column(String)
 
-# LOGIN: modelo empleado
 class Empleado(BaseEmpleados):
     __tablename__ = "empleados"
     codigo = Column(String(4), primary_key=True)
-    nombre = Column(String, nullable=True)
+    nombre = Column(String)
 
-def init_db():
-    db = SessionLocal()
-    try:
-        iniciales = ["CAR001", "CAR002", "VEH0003", "VEH0004"]
-        for cod in iniciales:
-            if not db.query(Vehiculo).filter_by(codigo=cod).first():
-                db.add(Vehiculo(codigo=cod))
-        db.commit()
-    finally:
-        db.close()
-
+# Inicialización de base de datos
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
@@ -102,6 +91,8 @@ STATIC_DIR = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
+# Dependencias
+
 def get_db():
     db = SessionLocal()
     try:
@@ -116,6 +107,18 @@ def get_db_empleados():
     finally:
         db.close()
 
+def init_db():
+    db = SessionLocal()
+    try:
+        iniciales = ["CAR001", "CAR002", "VEH0003", "VEH0004"]
+        for cod in iniciales:
+            if not db.query(Vehiculo).filter_by(codigo=cod).first():
+                db.add(Vehiculo(codigo=cod))
+        db.commit()
+    finally:
+        db.close()
+
+# Rutas
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -131,82 +134,70 @@ def mostrar_formulario(request: Request):
     db.close()
     return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": disponibles, "mensaje": ""})
 
-@app.post("/clasificar", response_class=HTMLResponse)
-def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str = Form(...), tipo: str = Form(...), db: Session = Depends(get_db)):
-    clasificacion_map = {"Muy sucio": "1", "Normal": "2", "Poco sucio": "3", "Shampuseado": "4", "Franeleado": "5"}
-    tipo_map = {"Camioneta Grande": "A", "Camioneta pequeña": "B", "Busito": "C", "Pick Up": "D", "Turismo normal": "E", "Turismo pequeño": "F"}
-    grado = clasificacion_map.get(suciedad)
-    tipo_vehiculo = tipo_map.get(tipo)
+@app.get("/buscar_codigos")
+def buscar_codigos(q: str, db: Session = Depends(get_db)):
+    resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
+    return {"resultados": [r[0] for r in resultados]}
 
-    if not grado or not tipo_vehiculo:
-        mensaje = "❌ Clasificación inválida"
+@app.get("/agregar_vehiculo", response_class=HTMLResponse)
+def mostrar_formulario_agregar(request: Request):
+    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
+
+@app.post("/agregar_vehiculo", response_class=HTMLResponse)
+def procesar_agregar_vehiculo(request: Request, letra: str = Form(...), digitos: str = Form(...), db: Session = Depends(get_db)):
+    letra = letra.upper()
+    if letra not in ["P", "C", "M", "T"]:
+        mensaje = "❌ Letra inválida. Debe ser P, C, M o T (mayúscula)."
+    elif not re.fullmatch(r"\d{4}", digitos):
+        mensaje = "❌ Los dígitos deben ser exactamente 4 números."
     else:
-        clasificacion = tipo_vehiculo + grado
-        tiempo_estimado = TIEMPOS_ESTIMADOS.get(clasificacion, 18)
-        db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
-        db.add(Clasificacion(codigo=codigo, clasificacion=clasificacion, revisado_por="Calidad", tiempo_estimado=tiempo_estimado))
-        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo, ColaLavado.estado == "completado").delete()
-        db.add(ColaLavado(codigo_vehiculo=codigo, clasificacion=clasificacion, fecha=datetime.utcnow(), semana=datetime.utcnow().isocalendar()[1], estado="en_cola"))
-        db.commit()
-        mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
-
-    vehiculos = db.query(Vehiculo.codigo).all()
-    codigos = [v[0] for v in vehiculos]
-    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
-    completados_set = {c[0] for c in completados}
-    disponibles = [cod for cod in codigos if cod not in completados_set]
-    return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": disponibles, "mensaje": mensaje})
-
-class RegistroEntrada(BaseModel):
-    vehiculo: str
-    empleado: str
-
-@app.post("/registrar")
-def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
-    vehiculo = entrada.vehiculo
-    empleado = entrada.empleado
-    ahora = datetime.utcnow()
-    clasif = db.query(Clasificacion).filter(Clasificacion.codigo == vehiculo).first()
-    if not clasif:
-        return JSONResponse(content={"status": "error", "message": "Vehículo no clasificado"}, status_code=400)
-
-    registro_abierto_otro = db.query(RegistroLavado).filter(
-        RegistroLavado.empleado == empleado, RegistroLavado.fin.is_(None), RegistroLavado.vehiculo != vehiculo
-    ).first()
-    if registro_abierto_otro:
-        return JSONResponse(content={"status": "error", "message": f"{empleado} ya tiene un check-in en otro vehículo"}, status_code=400)
-
-    registro_abierto = db.query(RegistroLavado).filter(
-        RegistroLavado.vehiculo == vehiculo, RegistroLavado.empleado == empleado, RegistroLavado.fin.is_(None)
-    ).first()
-
-    if registro_abierto:
-        registro_abierto.fin = ahora
-        tiempo_real = int((ahora - registro_abierto.inicio).total_seconds() / 60)
-        tiempo_estimado = clasif.tiempo_estimado or 18
-        eficiencia = f"{int((tiempo_estimado / tiempo_real) * 100)}%" if tiempo_real else "N/A"
-        registro_abierto.tiempo_real = tiempo_real
-        registro_abierto.tiempo_estimado = tiempo_estimado
-        registro_abierto.eficiencia = eficiencia
-        db.commit()
-
-        otros_trabajando = db.query(RegistroLavado).filter(
-            RegistroLavado.vehiculo == vehiculo, RegistroLavado.fin.is_(None), RegistroLavado.id != registro_abierto.id
-        ).first()
-        if not otros_trabajando:
-            db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == vehiculo).delete()
-            db.query(Clasificacion).filter(Clasificacion.codigo == vehiculo).delete()
+        codigo_vehiculo = f"{letra}-{digitos}"
+        if db.query(Vehiculo).filter_by(codigo=codigo_vehiculo).first():
+            mensaje = "❌ El código de vehículo ya existe."
+        else:
+            db.add(Vehiculo(codigo=codigo_vehiculo))
             db.commit()
+            mensaje = f"✅ Vehículo {codigo_vehiculo} agregado correctamente."
 
-        return {"status": "checkout", "vehiculo": vehiculo, "empleado": empleado, "fin": ahora.isoformat(), "mensaje": f"✅ Check-out realizado para {vehiculo}"}
+    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
 
-    nuevo_registro = RegistroLavado(
-        vehiculo=vehiculo, empleado=empleado, inicio=ahora, tiempo_estimado=clasif.tiempo_estimado or 18
-    )
-    db.add(nuevo_registro)
-    db.commit()
+@app.get("/crear_codigos", response_class=HTMLResponse)
+def mostrar_creador_codigos(request: Request):
+    return templates.TemplateResponse("crear_codigos.html", {"request": request})
 
-    return {"status": "checkin", "vehiculo": vehiculo, "empleado": empleado, "inicio": ahora.isoformat(), "mensaje": f"🚗 Check-in registrado para {vehiculo}"}
+@app.post("/crear_codigos/generar")
+async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
+    buffer = io.BytesIO()
+    code128_class = barcode.get_barcode_class("code128")
+    code128_instance = code128_class(codigo, writer=ImageWriter())
+    code128_instance.write(buffer)
+    buffer.seek(0)
+    headers = {"Content-Disposition": f"attachment; filename={codigo}.png"}
+    return StreamingResponse(buffer, media_type="image/png", headers=headers)
+
+@app.get("/crear_codigos/generar_todos")
+async def generar_todos_codigos(db: Session = Depends(get_db)):
+    codigos = [v.codigo for v in db.query(Vehiculo).all()]
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
+    code128_class = barcode.get_barcode_class("code128")
+
+    for codigo in codigos:
+        barcode_buffer = io.BytesIO()
+        code128_class(codigo, writer=ImageWriter()).write(barcode_buffer)
+        barcode_buffer.seek(0)
+        c.drawImage(ImageReader(barcode_buffer), 50, y - 50, width=300, height=50)
+        c.drawString(50, y - 60, codigo)
+        y -= 100
+        if y < 100:
+            c.showPage()
+            y = height - 50
+    c.save()
+    buffer.seek(0)
+    headers = {"Content-Disposition": "attachment; filename=codigos_vehiculos.pdf"}
+    return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 
 @app.post("/login")
 def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
