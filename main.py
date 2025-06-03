@@ -16,16 +16,19 @@ from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from contextlib import asynccontextmanager
 
-# BASES DE DATOS
+# BASE DE DATOS VEHÍCULOS
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
-DATABASE_URL_EMPLEADOS = "postgresql://postgres:gFQOssQuCNFeLZqvKBNcERsRrxWEiZlJ@shuttle.proxy.rlwy.net:42664/railway"
 engine = create_engine(DATABASE_URL)
-engine_empleados = create_engine(DATABASE_URL_EMPLEADOS)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-SessionEmpleados = sessionmaker(autocommit=False, autoflush=False, bind=engine_empleados)
 Base = declarative_base()
+
+# BASE DE DATOS EMPLEADOS
+DATABASE_URL_EMPLEADOS = "postgresql://postgres:gFQOssQuCNFeLZqvKBNcERsRrxWEiZlJ@shuttle.proxy.rlwy.net:42664/railway"
+engine_empleados = create_engine(DATABASE_URL_EMPLEADOS)
+SessionEmpleados = sessionmaker(autocommit=False, autoflush=False, bind=engine_empleados)
 BaseEmpleados = declarative_base()
 
+# Tiempos estimados
 TIEMPOS_ESTIMADOS = {
     "A1": 120, "A2": 60, "A3": 30, "A4": 240, "A5": 7,
     "B1": 100, "B2": 50, "B3": 25, "B4": 240, "B5": 7,
@@ -141,11 +144,7 @@ def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str
         db.add(ColaLavado(codigo_vehiculo=codigo, clasificacion=clasificacion, fecha=datetime.utcnow(), semana=datetime.utcnow().isocalendar()[1], estado="en_cola"))
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
-    vehiculos = db.query(Vehiculo.codigo).all()
-    codigos = [v[0] for v in vehiculos]
-    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
-    disponibles = [c for c in codigos if c not in {x[0] for x in completados}]
-    return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": disponibles, "mensaje": mensaje})
+    return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": codigo, "mensaje": mensaje})
 
 @app.post("/registrar")
 def registrar_lavado(
@@ -170,6 +169,27 @@ def registrar_lavado(
         return {"status": "ok", "eficiencia": eficiencia}
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/buscar_codigos")
+def buscar_codigos(q: str, db: Session = Depends(get_db)):
+    resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
+    return {"resultados": [r[0] for r in resultados]}
+
+@app.get("/agregar_empleado", response_class=HTMLResponse)
+def mostrar_formulario_empleado(request: Request):
+    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
+
+@app.post("/agregar_empleado", response_class=HTMLResponse)
+def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Form(...), db: Session = Depends(get_db_empleados)):
+    if not re.fullmatch(r"\d{4}", codigo):
+        mensaje = "❌ El código debe tener 4 dígitos."
+    elif db.query(Empleado).filter_by(codigo=codigo).first():
+        mensaje = "❌ El empleado ya existe."
+    else:
+        db.add(Empleado(codigo=codigo, nombre=nombre))
+        db.commit()
+        mensaje = f"✅ Empleado {nombre} agregado."
+    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": mensaje})
 
 @app.post("/login")
 def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
