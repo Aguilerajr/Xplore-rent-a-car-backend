@@ -17,11 +17,17 @@ from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from contextlib import asynccontextmanager
 
-# Configuración de la base de datos
+# BASE DE DATOS VEHÍCULOS
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# BASE DE DATOS EMPLEADOS (login)
+DATABASE_URL_EMPLEADOS = "postgresql://postgres:gFQOssQuCNFeLZqvKBNcERsRrxWEiZlJ@shuttle.proxy.rlwy.net:42664/railway"
+engine_empleados = create_engine(DATABASE_URL_EMPLEADOS)
+SessionEmpleados = sessionmaker(autocommit=False, autoflush=False, bind=engine_empleados)
+BaseEmpleados = declarative_base()
 
 # Tiempos estimados por clasificación
 TIEMPOS_ESTIMADOS = {
@@ -33,7 +39,6 @@ TIEMPOS_ESTIMADOS = {
     "F1": 50, "F2": 35, "F3": 20, "F4": 240, "F5": 7
 }
 
-# Modelos de la base de datos
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
     codigo = Column(String, primary_key=True)
@@ -65,7 +70,12 @@ class RegistroLavado(Base):
     tiempo_estimado = Column(Integer)
     eficiencia = Column(String)
 
-# Inicializar algunos vehículos
+# LOGIN: modelo empleado
+class Empleado(BaseEmpleados):
+    __tablename__ = "empleados"
+    codigo = Column(String(4), primary_key=True)
+    nombre = Column(String, nullable=True)
+
 def init_db():
     db = SessionLocal()
     try:
@@ -80,20 +90,18 @@ def init_db():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    BaseEmpleados.metadata.create_all(bind=engine_empleados)
     init_db()
     yield
 
 app = FastAPI(lifespan=lifespan)
 
-# Directorios para plantillas y estáticos
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
-
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
-# Dependencia de sesión de base de datos
 def get_db():
     db = SessionLocal()
     try:
@@ -101,7 +109,13 @@ def get_db():
     finally:
         db.close()
 
-# Rutas
+def get_db_empleados():
+    db = SessionEmpleados()
+    try:
+        yield db
+    finally:
+        db.close()
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -121,7 +135,6 @@ def mostrar_formulario(request: Request):
 def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str = Form(...), tipo: str = Form(...), db: Session = Depends(get_db)):
     clasificacion_map = {"Muy sucio": "1", "Normal": "2", "Poco sucio": "3", "Shampuseado": "4", "Franeleado": "5"}
     tipo_map = {"Camioneta Grande": "A", "Camioneta pequeña": "B", "Busito": "C", "Pick Up": "D", "Turismo normal": "E", "Turismo pequeño": "F"}
-
     grado = clasificacion_map.get(suciedad)
     tipo_vehiculo = tipo_map.get(tipo)
 
@@ -153,7 +166,6 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     vehiculo = entrada.vehiculo
     empleado = entrada.empleado
     ahora = datetime.utcnow()
-
     clasif = db.query(Clasificacion).filter(Clasificacion.codigo == vehiculo).first()
     if not clasif:
         return JSONResponse(content={"status": "error", "message": "Vehículo no clasificado"}, status_code=400)
@@ -196,70 +208,19 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
 
     return {"status": "checkin", "vehiculo": vehiculo, "empleado": empleado, "inicio": ahora.isoformat(), "mensaje": f"🚗 Check-in registrado para {vehiculo}"}
 
-@app.get("/agregar_vehiculo", response_class=HTMLResponse)
-def mostrar_formulario_agregar(request: Request):
-    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
+@app.post("/login")
+def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
+    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
+    if empleado:
+        return {"status": "ok", "codigo": empleado.codigo, "nombre": empleado.nombre}
+    return {"status": "error", "message": "Código no válido"}
 
-@app.post("/agregar_vehiculo", response_class=HTMLResponse)
-def procesar_agregar_vehiculo(request: Request, letra: str = Form(...), digitos: str = Form(...), db: Session = Depends(get_db)):
-    letra = letra.upper()
-    if letra not in ["P", "C", "M", "T"]:
-        mensaje = "❌ Letra inválida. Debe ser P, C, M o T (mayúscula)."
-    elif not re.fullmatch(r"\d{4}", digitos):
-        mensaje = "❌ Los dígitos deben ser exactamente 4 números."
-    else:
-        codigo_vehiculo = f"{letra}-{digitos}"
-        if db.query(Vehiculo).filter_by(codigo=codigo_vehiculo).first():
-            mensaje = "❌ El código de vehículo ya existe."
-        else:
-            db.add(Vehiculo(codigo=codigo_vehiculo))
-            db.commit()
-            mensaje = f"✅ Vehículo {codigo_vehiculo} agregado correctamente."
-
-    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
-
-@app.get("/crear_codigos", response_class=HTMLResponse)
-def mostrar_creador_codigos(request: Request):
-    return templates.TemplateResponse("crear_codigos.html", {"request": request})
-
-@app.post("/crear_codigos/generar")
-async def generar_codigo_barras(request: Request, codigo: str = Form(...)):
-    buffer = io.BytesIO()
-    code128_class = barcode.get_barcode_class("code128")
-    code128_instance = code128_class(codigo, writer=ImageWriter())
-    code128_instance.write(buffer)
-    buffer.seek(0)
-    headers = {"Content-Disposition": f"attachment; filename={codigo}.png"}
-    return StreamingResponse(buffer, media_type="image/png", headers=headers)
-
-@app.get("/crear_codigos/generar_todos")
-async def generar_todos_codigos(db: Session = Depends(get_db)):
-    codigos = [v.codigo for v in db.query(Vehiculo).all()]
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-    y = height - 50
-    code128_class = barcode.get_barcode_class("code128")
-
-    for codigo in codigos:
-        barcode_buffer = io.BytesIO()
-        code128_class(codigo, writer=ImageWriter()).write(barcode_buffer)
-        barcode_buffer.seek(0)
-        c.drawImage(ImageReader(barcode_buffer), 50, y - 50, width=300, height=50)
-        c.drawString(50, y - 60, codigo)
-        y -= 100
-        if y < 100:
-            c.showPage()
-            y = height - 50
-    c.save()
-    buffer.seek(0)
-    headers = {"Content-Disposition": "attachment; filename=codigos_vehiculos.pdf"}
-    return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
-
-@app.get("/buscar_codigos")
-def buscar_codigos(q: str, db: Session = Depends(get_db)):
-    resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
-    return {"resultados": [r[0] for r in resultados]}
+@app.get("/obtener_empleado")
+def obtener_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
+    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
+    if empleado:
+        return {"codigo": empleado.codigo, "nombre": empleado.nombre}
+    return JSONResponse(content={"detail": "No encontrado"}, status_code=404)
 
 if __name__ == "__main__":
     import uvicorn
