@@ -203,7 +203,7 @@ def mostrar_formulario_empleado(request: Request):
 
 @app.post("/agregar_empleado", response_class=HTMLResponse)
 def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Form(...), db: Session = Depends(get_db_empleados)):
-    if not re.fullmatch(r"\d{4}", codigo):
+    if not re.fullmatch(r"\\d{4}", codigo):
         mensaje = "❌ El código debe tener 4 dígitos numéricos."
     elif db.query(Empleado).filter_by(codigo=codigo).first():
         mensaje = "❌ El empleado ya existe."
@@ -213,7 +213,21 @@ def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Fo
         mensaje = f"✅ Empleado {nombre} agregado con código {codigo}."
     return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": mensaje})
 
-# 🔷 Las demás rutas (`agregar_vehiculo`, `crear_codigos`, `buscar_codigos`, etc.) quedan iguales...
+# ✅ NUEVA RUTA DE LOGIN CON POSTGRESQL
+@app.post("/login")
+def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
+    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
+    if empleado:
+        return {
+            "status": "ok",
+            "codigo": empleado.codigo,
+            "nombre": empleado.nombre
+        }
+    else:
+        return {
+            "status": "error",
+            "message": "Código no válido"
+        }
 
 if __name__ == "__main__":
     import uvicorn
