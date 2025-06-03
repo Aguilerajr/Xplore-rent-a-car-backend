@@ -5,7 +5,6 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import os
 from datetime import datetime
-from pydantic import BaseModel
 import re
 import io
 import barcode
@@ -17,19 +16,16 @@ from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from contextlib import asynccontextmanager
 
-# BASE DE DATOS VEHÍCULOS
+# BASES DE DATOS
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-# BASE DE DATOS EMPLEADOS
 DATABASE_URL_EMPLEADOS = "postgresql://postgres:gFQOssQuCNFeLZqvKBNcERsRrxWEiZlJ@shuttle.proxy.rlwy.net:42664/railway"
+engine = create_engine(DATABASE_URL)
 engine_empleados = create_engine(DATABASE_URL_EMPLEADOS)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 SessionEmpleados = sessionmaker(autocommit=False, autoflush=False, bind=engine_empleados)
+Base = declarative_base()
 BaseEmpleados = declarative_base()
 
-# Tiempos estimados
 TIEMPOS_ESTIMADOS = {
     "A1": 120, "A2": 60, "A3": 30, "A4": 240, "A5": 7,
     "B1": 100, "B2": 50, "B3": 25, "B4": 240, "B5": 7,
@@ -39,7 +35,6 @@ TIEMPOS_ESTIMADOS = {
     "F1": 50,  "F2": 35, "F3": 20, "F4": 240, "F5": 7
 }
 
-# Modelos
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
     codigo = Column(String, primary_key=True)
@@ -76,14 +71,6 @@ class Empleado(BaseEmpleados):
     codigo = Column(String(4), primary_key=True)
     nombre = Column(String)
 
-# Pydantic para registrar lavado
-class RegistroEntrada(BaseModel):
-    codigo: str
-    empleado: str
-    inicio: str
-    fin: str
-
-# Inicialización
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
@@ -99,7 +86,6 @@ STATIC_DIR = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
-# Sesiones
 def get_db():
     db = SessionLocal()
     try:
@@ -123,8 +109,6 @@ def init_db():
         db.commit()
     finally:
         db.close()
-
-# Rutas
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
@@ -157,41 +141,35 @@ def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str
         db.add(ColaLavado(codigo_vehiculo=codigo, clasificacion=clasificacion, fecha=datetime.utcnow(), semana=datetime.utcnow().isocalendar()[1], estado="en_cola"))
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
-    return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": codigo, "mensaje": mensaje})
+    vehiculos = db.query(Vehiculo.codigo).all()
+    codigos = [v[0] for v in vehiculos]
+    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
+    disponibles = [c for c in codigos if c not in {x[0] for x in completados}]
+    return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": disponibles, "mensaje": mensaje})
 
 @app.post("/registrar")
-def registrar_lavado(data: RegistroEntrada, db: Session = Depends(get_db)):
+def registrar_lavado(
+    codigo: str = Form(...),
+    empleado: str = Form(...),
+    inicio: str = Form(...),
+    fin: str = Form(...),
+    db: Session = Depends(get_db)
+):
     try:
-        inicio_dt = datetime.fromisoformat(data.inicio)
-        fin_dt = datetime.fromisoformat(data.fin)
+        inicio_dt = datetime.fromisoformat(inicio)
+        fin_dt = datetime.fromisoformat(fin)
         tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
-        clasificacion = db.query(Clasificacion).filter_by(codigo=data.codigo).first()
+        clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
         if not clasificacion:
             return {"error": "El vehículo no ha sido clasificado"}
         tiempo_estimado = clasificacion.tiempo_estimado
         eficiencia = round((tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-        db.add(RegistroLavado(vehiculo=data.codigo, empleado=data.empleado, inicio=inicio_dt, fin=fin_dt, tiempo_real=tiempo_real, tiempo_estimado=tiempo_estimado, eficiencia=f"{eficiencia}%"))
-        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == data.codigo).update({"estado": "completado"})
+        db.add(RegistroLavado(vehiculo=codigo, empleado=empleado, inicio=inicio_dt, fin=fin_dt, tiempo_real=tiempo_real, tiempo_estimado=tiempo_estimado, eficiencia=f"{eficiencia}%"))
+        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).update({"estado": "completado"})
         db.commit()
         return {"status": "ok", "eficiencia": eficiencia}
     except Exception as e:
         return {"error": str(e)}
-
-@app.get("/agregar_empleado", response_class=HTMLResponse)
-def mostrar_formulario_empleado(request: Request):
-    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
-
-@app.post("/agregar_empleado", response_class=HTMLResponse)
-def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Form(...), db: Session = Depends(get_db_empleados)):
-    if not re.fullmatch(r"\d{4}", codigo):
-        mensaje = "❌ El código debe tener 4 dígitos."
-    elif db.query(Empleado).filter_by(codigo=codigo).first():
-        mensaje = "❌ El empleado ya existe."
-    else:
-        db.add(Empleado(codigo=codigo, nombre=nombre))
-        db.commit()
-        mensaje = f"✅ Empleado {nombre} agregado."
-    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": mensaje})
 
 @app.post("/login")
 def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
