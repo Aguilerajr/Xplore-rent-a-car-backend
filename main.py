@@ -97,37 +97,45 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Directorios para plantillas y estáticos
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
-# Sesiones
-def get_db():  # Para vehículos
+def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-def get_db_empleados():  # Para empleados
+def get_db_empleados():
     db = SessionEmpleados()
     try:
         yield db
     finally:
         db.close()
 
-# 🔷 Endpoint para verificar empleado (login corregido)
+# ✅ VERIFICACIÓN DEL LOGIN (valida 4 dígitos Y existencia)
 @app.get("/verificar_empleado")
 def verificar_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
     if not re.fullmatch(r"\d{4}", codigo):
         return {"valido": False}
-    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
-    return {"valido": bool(empleado)}
+    existe = db.query(Empleado).filter_by(codigo=codigo).first()
+    return {"valido": bool(existe)}
 
-# 🔷 RUTAS DE EMPLEADOS (agregar empleado HTML)
+# ✅ OBTENER NOMBRE DE EMPLEADO PARA LA APP
+@app.get("/obtener_empleado")
+def obtener_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
+    if not re.fullmatch(r"\d{4}", codigo):
+        return {"error": "Código inválido"}
+    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
+    if empleado:
+        return {"codigo": empleado.codigo, "nombre": empleado.nombre}
+    return {"error": "Empleado no encontrado"}
+
+# ✅ HTML PARA AGREGAR EMPLEADO
 @app.get("/agregar_empleado", response_class=HTMLResponse)
 def mostrar_formulario_empleado(request: Request):
     return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
