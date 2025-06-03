@@ -71,8 +71,6 @@
             margin: 0.5em 0 0;
             background: #eee;
             border-radius: 4px;
-            max-height: 150px;
-            overflow-y: auto;
         }
         ul#sugerencias li {
             padding: 0.5em;
@@ -85,80 +83,82 @@
 </head>
 <body>
 
-<h1>Clasificar Vehículo</h1>
+    <h1>Clasificar Vehículo</h1>
 
-<form action="/clasificar" method="post">
-    <label for="codigo">Código:</label>
-    <input type="text" name="codigo" id="codigo" placeholder="Ej: P-1234" required autocomplete="off">
-    <ul id="sugerencias"></ul>
+    <form action="/clasificar" method="post">
+        <label for="codigo">Código:</label>
+        <input type="text" name="codigo" id="codigo" placeholder="Ej: P-1234" required autocomplete="off">
+        <ul id="sugerencias"></ul>
 
-    <label for="suciedad">Nivel de suciedad:</label>
-    <select name="suciedad" required>
-        <option value="Muy sucio">Muy sucio</option>
-        <option value="Normal">Normal</option>
-        <option value="Poco sucio">Poco sucio</option>
-        <option value="Shampuseado">Shampuseado</option>
-        <option value="Franeleado">Franeleado</option>
-    </select>
+        <label for="suciedad">Nivel de suciedad:</label>
+        <select name="suciedad" required>
+            <option value="Muy sucio">Muy sucio</option>
+            <option value="Normal">Normal</option>
+            <option value="Poco sucio">Poco sucio</option>
+            <option value="Shampuseado">Shampuseado</option>
+            <option value="Franeleado">Franeleado</option>
+        </select>
 
-    <label for="tipo">Tipo de vehículo:</label>
-    <select name="tipo" required>
-        <option value="Camioneta Grande">Camioneta Grande</option>
-        <option value="Camioneta pequeña">Camioneta pequeña</option>
-        <option value="Busito">Busito</option>
-        <option value="Pick Up">Pick Up</option>
-        <option value="Turismo normal">Turismo normal</option>
-        <option value="Turismo pequeño">Turismo pequeño</option>
-    </select>
+        <label for="tipo">Tipo de vehículo:</label>
+        <select name="tipo" required>
+            <option value="Camioneta Grande">Camioneta Grande</option>
+            <option value="Camioneta pequeña">Camioneta pequeña</option>
+            <option value="Busito">Busito</option>
+            <option value="Pick Up">Pick Up</option>
+            <option value="Turismo normal">Turismo normal</option>
+            <option value="Turismo pequeño">Turismo pequeño</option>
+        </select>
 
-    <input type="submit" value="Clasificar">
-</form>
+        <input type="submit" value="Clasificar">
+    </form>
 
-{% if mensaje %}
-    <div class="mensaje">{{ mensaje }}</div>
-{% endif %}
+    {% if mensaje %}
+        <div class="mensaje">{{ mensaje }}</div>
+    {% endif %}
 
-<div class="lista">
-    <h2>Vehículos registrados:</h2>
-    <ul>
-        {% if vehiculos %}
-            {% for codigo in vehiculos %}
-                <li>{{ codigo }}</li>
-            {% endfor %}
-        {% else %}
-            <li>No hay vehículos registrados aún</li>
-        {% endif %}
-    </ul>
-</div>
+    <div class="lista">
+        <h2>Vehículos registrados:</h2>
+        <ul>
+            {% if vehiculos %}
+                {% for codigo in vehiculos %}
+                    <li>{{ codigo }}</li>
+                {% endfor %}
+            {% else %}
+                <li>No hay vehículos registrados aún</li>
+            {% endif %}
+        </ul>
+    </div>
 
-<a class="regresar" href="/">Regresar al inicio</a>
+    <!-- Botón para regresar al inicio -->
+    <a class="regresar" href="/">Regresar al inicio</a>
 
-<script>
-    const input = document.getElementById('codigo');
-    const sugerencias = document.getElementById('sugerencias');
+    <!-- Script para autocompletar código -->
+    <script>
+        const input = document.getElementById('codigo');
+        const sugerencias = document.getElementById('sugerencias');
 
-    input.addEventListener('input', () => {
-        const valor = input.value;
-        if (valor.length > 0) {
-            fetch(`/sugerencias_codigos?q=${encodeURIComponent(valor)}`)
-                .then(response => response.json())
-                .then(data => {
-                    sugerencias.innerHTML = '';
-                    data.forEach(codigo => {
-                        const li = document.createElement('li');
-                        li.textContent = codigo;
-                        li.addEventListener('click', () => {
-                            input.value = codigo;
-                            sugerencias.innerHTML = '';
+        input.addEventListener('input', () => {
+            const valor = input.value;
+            if (valor.length > 0) {
+                fetch(`/buscar_codigos?q=${valor}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        sugerencias.innerHTML = '';
+                        data.resultados.forEach(codigo => {
+                            const li = document.createElement('li');
+                            li.textContent = codigo;
+                            li.addEventListener('click', () => {
+                                input.value = codigo;
+                                sugerencias.innerHTML = '';
+                            });
+                            sugerencias.appendChild(li);
                         });
-                        sugerencias.appendChild(li);
                     });
-                });
-        } else {
-            sugerencias.innerHTML = '';
-        }
-    });
-</script>
+            } else {
+                sugerencias.innerHTML = '';
+            }
+        });
+    </script>
 
 </body>
 </html>
