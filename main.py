@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, Request, Depends
-from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -28,7 +28,7 @@ SessionEmpleados = sessionmaker(autocommit=False, autoflush=False, bind=engine_e
 Base = declarative_base()
 BaseEmpleados = declarative_base()
 
-# MODELOS BASE DE VEHÍCULOS
+# MODELOS
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
     codigo = Column(String, primary_key=True)
@@ -60,13 +60,11 @@ class RegistroLavado(Base):
     tiempo_estimado = Column(Integer)
     eficiencia = Column(String)
 
-# MODELO BASE DE EMPLEADOS
 class Empleado(BaseEmpleados):
     __tablename__ = "empleados"
     codigo = Column(String(4), primary_key=True)
     nombre = Column(String, nullable=True)
 
-# Tiempos estimados por clasificación
 TIEMPOS_ESTIMADOS = {
     "A1": 120, "A2": 60, "A3": 30, "A4": 240, "A5": 7,
     "B1": 100, "B2": 50, "B3": 25, "B4": 240, "B5": 7,
@@ -97,29 +95,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Directorios para plantillas y estáticos
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
-# Sesiones
-def get_db():  # Para vehículos
+def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-def get_db_empleados():  # Para empleados
+def get_db_empleados():
     db = SessionEmpleados()
     try:
         yield db
     finally:
         db.close()
 
-# RUTAS
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -135,11 +130,16 @@ def mostrar_formulario(request: Request):
     db.close()
     return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": disponibles, "mensaje": ""})
 
+@app.get("/buscar_codigos")
+def buscar_codigos(q: str = "", db: Session = Depends(get_db)):
+    codigos = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.ilike(f"%{q}%")).limit(10).all()
+    resultados = [c[0] for c in codigos]
+    return {"resultados": resultados}
+
 @app.post("/clasificar", response_class=HTMLResponse)
 def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str = Form(...), tipo: str = Form(...), db: Session = Depends(get_db)):
     clasificacion_map = {"Muy sucio": "1", "Normal": "2", "Poco sucio": "3", "Shampuseado": "4", "Franeleado": "5"}
     tipo_map = {"Camioneta Grande": "A", "Camioneta pequeña": "B", "Busito": "C", "Pick Up": "D", "Turismo normal": "E", "Turismo pequeño": "F"}
-
     grado = clasificacion_map.get(suciedad)
     tipo_vehiculo = tipo_map.get(tipo)
     if not grado or not tipo_vehiculo:
@@ -196,14 +196,13 @@ def registrar_evento(entrada: RegistroEntrada, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "checkin", "vehiculo": vehiculo, "empleado": empleado, "inicio": ahora.isoformat(), "mensaje": f"🚗 Check-in registrado para {vehiculo}"}
 
-# 🔷 RUTAS DE EMPLEADOS (usando la otra base de datos)
 @app.get("/agregar_empleado", response_class=HTMLResponse)
 def mostrar_formulario_empleado(request: Request):
     return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
 
 @app.post("/agregar_empleado", response_class=HTMLResponse)
 def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Form(...), db: Session = Depends(get_db_empleados)):
-    if not re.fullmatch(r"\\d{4}", codigo):
+    if not re.fullmatch(r"\d{4}", codigo):
         mensaje = "❌ El código debe tener 4 dígitos numéricos."
     elif db.query(Empleado).filter_by(codigo=codigo).first():
         mensaje = "❌ El empleado ya existe."
@@ -213,7 +212,6 @@ def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Fo
         mensaje = f"✅ Empleado {nombre} agregado con código {codigo}."
     return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": mensaje})
 
-# ✅ NUEVA RUTA DE LOGIN CON POSTGRESQL
 @app.post("/login")
 def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
     empleado = db.query(Empleado).filter_by(codigo=codigo).first()
