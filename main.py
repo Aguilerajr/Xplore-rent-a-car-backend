@@ -29,7 +29,6 @@ engine_empleados = create_engine(DATABASE_URL_EMPLEADOS)
 SessionEmpleados = sessionmaker(autocommit=False, autoflush=False, bind=engine_empleados)
 BaseEmpleados = declarative_base()
 
-# Tiempos estimados por clasificación
 TIEMPOS_ESTIMADOS = {
     "A1": 120, "A2": 60, "A3": 30, "A4": 240, "A5": 7,
     "B1": 100, "B2": 50, "B3": 25, "B4": 240, "B5": 7,
@@ -241,6 +240,38 @@ def obtener_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
     if empleado:
         return {"codigo": empleado.codigo, "nombre": empleado.nombre}
     return JSONResponse(content={"detail": "No encontrado"}, status_code=404)
+
+@app.post("/registrar")
+def registrar_lavado(
+    codigo: str = Form(...),
+    empleado: str = Form(...),
+    inicio: str = Form(...),
+    fin: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        inicio_dt = datetime.fromisoformat(inicio)
+        fin_dt = datetime.fromisoformat(fin)
+        tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
+        clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
+        if not clasificacion:
+            return {"error": "El vehículo no ha sido clasificado"}
+        tiempo_estimado = clasificacion.tiempo_estimado
+        eficiencia = round((tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
+        db.add(RegistroLavado(
+            vehiculo=codigo,
+            empleado=empleado,
+            inicio=inicio_dt,
+            fin=fin_dt,
+            tiempo_real=tiempo_real,
+            tiempo_estimado=tiempo_estimado,
+            eficiencia=f"{eficiencia}%"
+        ))
+        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).update({"estado": "completado"})
+        db.commit()
+        return {"status": "ok", "eficiencia": eficiencia}
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
