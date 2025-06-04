@@ -4,9 +4,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import os
-from datetime import datetime
 import re
 import io
+from datetime import datetime
 import barcode
 from barcode.writer import ImageWriter
 from reportlab.pdfgen import canvas
@@ -147,13 +147,7 @@ def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str
     return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": codigo, "mensaje": mensaje})
 
 @app.post("/registrar")
-def registrar_lavado(
-    codigo: str = Form(...),
-    empleado: str = Form(...),
-    inicio: str = Form(...),
-    fin: str = Form(...),
-    db: Session = Depends(get_db)
-):
+def registrar_lavado(codigo: str = Form(...), empleado: str = Form(...), inicio: str = Form(...), fin: str = Form(...), db: Session = Depends(get_db)):
     try:
         inicio_dt = datetime.fromisoformat(inicio)
         fin_dt = datetime.fromisoformat(fin)
@@ -161,10 +155,28 @@ def registrar_lavado(
         clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
         if not clasificacion:
             return {"error": "El vehículo no ha sido clasificado"}
+
         tiempo_estimado = clasificacion.tiempo_estimado
         eficiencia = round((tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-        db.add(RegistroLavado(vehiculo=codigo, empleado=empleado, inicio=inicio_dt, fin=fin_dt, tiempo_real=tiempo_real, tiempo_estimado=tiempo_estimado, eficiencia=f"{eficiencia}%"))
+
+        db.add(RegistroLavado(
+            vehiculo=codigo,
+            empleado=empleado,
+            inicio=inicio_dt,
+            fin=fin_dt,
+            tiempo_real=tiempo_real,
+            tiempo_estimado=tiempo_estimado,
+            eficiencia=f"{eficiencia}%"
+        ))
+
         db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).update({"estado": "completado"})
+
+        # Eliminar si ya nadie más trabaja en el vehículo
+        otros = db.query(RegistroLavado).filter(RegistroLavado.vehiculo == codigo, RegistroLavado.fin == None).count()
+        if otros == 0:
+            db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
+            db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
+
         db.commit()
         return {"status": "ok", "eficiencia": eficiencia}
     except Exception as e:
@@ -175,51 +187,6 @@ def buscar_codigos(q: str, db: Session = Depends(get_db)):
     resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.like(f"{q}%")).all()
     return {"resultados": [r[0] for r in resultados]}
 
-@app.get("/agregar_empleado", response_class=HTMLResponse)
-def mostrar_formulario_empleado(request: Request):
-    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
-
-@app.post("/agregar_empleado", response_class=HTMLResponse)
-def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Form(...), db: Session = Depends(get_db_empleados)):
-    if not re.fullmatch(r"\d{4}", codigo):
-        mensaje = "❌ El código debe tener 4 dígitos."
-    elif db.query(Empleado).filter_by(codigo=codigo).first():
-        mensaje = "❌ El empleado ya existe."
-    else:
-        db.add(Empleado(codigo=codigo, nombre=nombre))
-        db.commit()
-        mensaje = f"✅ Empleado {nombre} agregado."
-    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": mensaje})
-
-@app.post("/login")
-def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
-    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
-    if empleado:
-        return {"status": "ok", "codigo": empleado.codigo, "nombre": empleado.nombre}
-    return {"status": "error", "message": "Código no válido"}
-
-@app.get("/obtener_empleado")
-def obtener_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
-    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
-    if empleado:
-        return {"codigo": empleado.codigo, "nombre": empleado.nombre}
-    return JSONResponse(content={"detail": "No encontrado"}, status_code=404)
-@app.get("/agregar_vehiculo", response_class=HTMLResponse)
-def mostrar_formulario_vehiculo(request: Request):
-    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
-
-@app.post("/agregar_vehiculo", response_class=HTMLResponse)
-def agregar_vehiculo(request: Request, codigo: str = Form(...), db: Session = Depends(get_db)):
-    if not re.fullmatch(r"[A-Z]{1,3}-\d{3,5}", codigo):
-        mensaje = "❌ Código inválido. Debe tener formato como ABC-1234"
-    elif db.query(Vehiculo).filter_by(codigo=codigo).first():
-        mensaje = "❌ El vehículo ya existe."
-    else:
-        db.add(Vehiculo(codigo=codigo))
-        db.commit()
-        mensaje = f"✅ Vehículo {codigo} agregado correctamente."
-    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
-
 @app.get("/crear_codigos", response_class=HTMLResponse)
 def crear_codigos(request: Request, db: Session = Depends(get_db)):
     codigos = db.query(Vehiculo.codigo).all()
@@ -228,21 +195,16 @@ def crear_codigos(request: Request, db: Session = Depends(get_db)):
 @app.post("/crear_codigos/generar")
 def generar_codigos_pdf_o_png(codigos: str = Form(...)):
     codigos_list = [c.strip() for c in codigos.split(",") if c.strip()]
-
     if not codigos_list:
         return JSONResponse(content={"error": "No se ingresaron códigos válidos."}, status_code=400)
 
-    # 🟣 Si solo hay un código: generar imagen PNG directamente
     if len(codigos_list) == 1:
         codigo = codigos_list[0]
         img_buffer = io.BytesIO()
         barcode.get("code128", codigo, writer=ImageWriter()).write(img_buffer)
         img_buffer.seek(0)
-        return StreamingResponse(img_buffer, media_type="image/png", headers={
-            "Content-Disposition": f"inline; filename={codigo}.png"
-        })
+        return StreamingResponse(img_buffer, media_type="image/png", headers={"Content-Disposition": f"inline; filename={codigo}.png"})
 
-    # 🟢 Si hay varios códigos: generar PDF
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     x, y = 50, 750
@@ -260,10 +222,53 @@ def generar_codigos_pdf_o_png(codigos: str = Form(...)):
 
     c.save()
     buffer.seek(0)
-    return StreamingResponse(buffer, media_type="application/pdf", headers={
-        "Content-Disposition": "attachment; filename=codigos.pdf"
-    })
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=codigos.pdf"})
 
+@app.post("/login")
+def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
+    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
+    if empleado:
+        return {"status": "ok", "codigo": empleado.codigo, "nombre": empleado.nombre}
+    return {"status": "error", "message": "Código no válido"}
+
+@app.get("/obtener_empleado")
+def obtener_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
+    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
+    if empleado:
+        return {"codigo": empleado.codigo, "nombre": empleado.nombre}
+    return JSONResponse(content={"detail": "No encontrado"}, status_code=404)
+
+@app.get("/agregar_empleado", response_class=HTMLResponse)
+def mostrar_formulario_empleado(request: Request):
+    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
+
+@app.post("/agregar_empleado", response_class=HTMLResponse)
+def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Form(...), db: Session = Depends(get_db_empleados)):
+    if not re.fullmatch(r"\d{4}", codigo):
+        mensaje = "❌ El código debe tener 4 dígitos."
+    elif db.query(Empleado).filter_by(codigo=codigo).first():
+        mensaje = "❌ El empleado ya existe."
+    else:
+        db.add(Empleado(codigo=codigo, nombre=nombre))
+        db.commit()
+        mensaje = f"✅ Empleado {nombre} agregado."
+    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": mensaje})
+
+@app.get("/agregar_vehiculo", response_class=HTMLResponse)
+def mostrar_formulario_vehiculo(request: Request):
+    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
+
+@app.post("/agregar_vehiculo", response_class=HTMLResponse)
+def agregar_vehiculo(request: Request, codigo: str = Form(...), db: Session = Depends(get_db)):
+    if not re.fullmatch(r"[A-Z]{1,3}-\d{3,5}", codigo):
+        mensaje = "❌ Código inválido. Debe tener formato como ABC-1234"
+    elif db.query(Vehiculo).filter_by(codigo=codigo).first():
+        mensaje = "❌ El vehículo ya existe."
+    else:
+        db.add(Vehiculo(codigo=codigo))
+        db.commit()
+        mensaje = f"✅ Vehículo {codigo} agregado correctamente."
+    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
 
 if __name__ == "__main__":
     import uvicorn
