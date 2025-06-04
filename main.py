@@ -226,15 +226,28 @@ def crear_codigos(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("crear_codigos.html", {"request": request, "codigos": [c[0] for c in codigos]})
 
 @app.post("/crear_codigos/generar")
-def generar_codigos_pdf(codigos: str = Form(...)):
+def generar_codigos_pdf_o_png(codigos: str = Form(...)):
+    codigos_list = [c.strip() for c in codigos.split(",") if c.strip()]
+
+    if not codigos_list:
+        return JSONResponse(content={"error": "No se ingresaron códigos válidos."}, status_code=400)
+
+    # 🟣 Si solo hay un código: generar imagen PNG directamente
+    if len(codigos_list) == 1:
+        codigo = codigos_list[0]
+        img_buffer = io.BytesIO()
+        barcode.get("code128", codigo, writer=ImageWriter()).write(img_buffer)
+        img_buffer.seek(0)
+        return StreamingResponse(img_buffer, media_type="image/png", headers={
+            "Content-Disposition": f"inline; filename={codigo}.png"
+        })
+
+    # 🟢 Si hay varios códigos: generar PDF
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     x, y = 50, 750
 
-    for codigo in codigos.split(","):
-        codigo = codigo.strip()
-        if not codigo:
-            continue
+    for codigo in codigos_list:
         img_buffer = io.BytesIO()
         barcode.get("code128", codigo, writer=ImageWriter()).write(img_buffer)
         img_buffer.seek(0)
@@ -247,7 +260,10 @@ def generar_codigos_pdf(codigos: str = Form(...)):
 
     c.save()
     buffer.seek(0)
-    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment;filename=codigos.pdf"})
+    return StreamingResponse(buffer, media_type="application/pdf", headers={
+        "Content-Disposition": "attachment; filename=codigos.pdf"
+    })
+
 
 if __name__ == "__main__":
     import uvicorn
