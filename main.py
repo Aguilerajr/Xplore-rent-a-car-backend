@@ -148,33 +148,22 @@ def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str
     return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": codigo, "mensaje": mensaje})
 
 @app.post("/registrar")
-def registrar_lavado(
-    codigo: str = Form(...),
-    empleado: str = Form(...),
-    inicio: str = Form(...),
-    fin: str = Form(...),
-    db: Session = Depends(get_db)
-):
+def registrar_lavado(codigo: str = Form(...), empleado: str = Form(...), inicio: str = Form(...), fin: str = Form(...), db: Session = Depends(get_db)):
     try:
         inicio_dt = datetime.fromisoformat(inicio)
         fin_dt = datetime.fromisoformat(fin)
         tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
-
         clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
         if not clasificacion:
             return {"error": "El vehículo no ha sido clasificado"}
 
-        # Obtener nombre del empleado
-        db_empleados = SessionEmpleados()
-        nombre_empleado = db_empleados.query(Empleado.nombre).filter_by(codigo=empleado).scalar()
-        db_empleados.close()
-
         tiempo_estimado = clasificacion.tiempo_estimado
         eficiencia = round((tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
 
+        # Agregar el registro del lavado
         db.add(RegistroLavado(
             vehiculo=codigo,
-            empleado=f"{empleado} - {nombre_empleado or 'Desconocido'}",
+            empleado=empleado,
             inicio=inicio_dt,
             fin=fin_dt,
             tiempo_real=tiempo_real,
@@ -182,23 +171,20 @@ def registrar_lavado(
             eficiencia=f"{eficiencia}%"
         ))
 
-        # ✅ Marcar este registro como completado
-        db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
+        # Marcar como completado al menos por este empleado
+        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).update({"estado": "completado"})
 
-        # ✅ Revisar si hay más empleados activos para ese vehículo
-        registros_en_proceso = db.query(RegistroLavado).filter(
-            RegistroLavado.vehiculo == codigo,
-            RegistroLavado.fin == None
-        ).count()
-
-        if registros_en_proceso == 0:
-            db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
-            db.query(Clasificacion).filter_by(codigo=codigo).delete()
+        # Revisar si todos ya hicieron check-out
+        registros_pendientes = db.query(RegistroLavado).filter(RegistroLavado.vehiculo == codigo, RegistroLavado.fin == None).count()
+        if registros_pendientes == 0:
+            db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
+            db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
 
         db.commit()
         return {"status": "ok", "eficiencia": eficiencia}
     except Exception as e:
         return {"error": str(e)}
+
 
 @app.get("/buscar_codigos")
 def buscar_codigos(q: str, db: Session = Depends(get_db)):
