@@ -223,7 +223,7 @@ def agregar_vehiculo(request: Request, codigo: str = Form(...), db: Session = De
 @app.get("/crear_codigos", response_class=HTMLResponse)
 def crear_codigos(request: Request, db: Session = Depends(get_db)):
     codigos = db.query(Vehiculo.codigo).all()
-    return templates.TemplateResponse("generar_codigos.html", {"request": request, "codigos": [c[0] for c in codigos]})
+    return templates.TemplateResponse("crear_codigos.html", {"request": request, "codigos": [c[0] for c in codigos]})
 
 @app.post("/crear_codigos/generar")
 def generar_codigos_pdf(codigos: str = Form(...)):
