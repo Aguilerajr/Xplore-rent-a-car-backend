@@ -148,20 +148,33 @@ def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str
     return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": codigo, "mensaje": mensaje})
 
 @app.post("/registrar")
-def registrar_lavado(codigo: str = Form(...), empleado: str = Form(...), inicio: str = Form(...), fin: str = Form(...), db: Session = Depends(get_db)):
+def registrar_lavado(
+    codigo: str = Form(...),
+    empleado: str = Form(...),
+    inicio: str = Form(...),
+    fin: str = Form(...),
+    db: Session = Depends(get_db)
+):
     try:
+        print("📌 Entró a /registrar")
+
         inicio_dt = datetime.fromisoformat(inicio)
         fin_dt = datetime.fromisoformat(fin)
+        print("✅ Fechas convertidas correctamente")
+
         tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
+        print(f"🕒 Tiempo real calculado: {tiempo_real} min")
+
         clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
         if not clasificacion:
+            print("❌ Clasificación no encontrada")
             return {"error": "El vehículo no ha sido clasificado"}
 
         tiempo_estimado = clasificacion.tiempo_estimado
         eficiencia = round((tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
+        print(f"⚙️ Eficiencia: {eficiencia}%")
 
-        # Agregar el registro del lavado
-        db.add(RegistroLavado(
+        nuevo_registro = RegistroLavado(
             vehiculo=codigo,
             empleado=empleado,
             inicio=inicio_dt,
@@ -169,21 +182,33 @@ def registrar_lavado(codigo: str = Form(...), empleado: str = Form(...), inicio:
             tiempo_real=tiempo_real,
             tiempo_estimado=tiempo_estimado,
             eficiencia=f"{eficiencia}%"
-        ))
+        )
+        db.add(nuevo_registro)
+        print("📥 Registro agregado")
 
-        # Marcar como completado al menos por este empleado
         db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).update({"estado": "completado"})
+        print("✅ Estado de cola actualizado")
 
-        # Revisar si todos ya hicieron check-out
-        registros_pendientes = db.query(RegistroLavado).filter(RegistroLavado.vehiculo == codigo, RegistroLavado.fin == None).count()
+        registros_pendientes = db.query(RegistroLavado).filter(
+            RegistroLavado.vehiculo == codigo,
+            RegistroLavado.fin == None
+        ).count()
+
+        print(f"📊 Registros pendientes: {registros_pendientes}")
+
         if registros_pendientes == 0:
             db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
             db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
+            print("🧹 Vehículo eliminado de cola y clasificaciones")
 
         db.commit()
+        print("💾 Commit exitoso")
+
         return {"status": "ok", "eficiencia": eficiencia}
     except Exception as e:
+        print(f"❗ ERROR en registrar: {str(e)}")
         return {"error": str(e)}
+
 
 
 @app.get("/buscar_codigos")
