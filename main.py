@@ -204,6 +204,50 @@ def obtener_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
     if empleado:
         return {"codigo": empleado.codigo, "nombre": empleado.nombre}
     return JSONResponse(content={"detail": "No encontrado"}, status_code=404)
+@app.get("/agregar_vehiculo", response_class=HTMLResponse)
+def mostrar_formulario_vehiculo(request: Request):
+    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
+
+@app.post("/agregar_vehiculo", response_class=HTMLResponse)
+def agregar_vehiculo(request: Request, codigo: str = Form(...), db: Session = Depends(get_db)):
+    if not re.fullmatch(r"[A-Z]{1,3}-\d{3,5}", codigo):
+        mensaje = "❌ Código inválido. Debe tener formato como ABC-1234"
+    elif db.query(Vehiculo).filter_by(codigo=codigo).first():
+        mensaje = "❌ El vehículo ya existe."
+    else:
+        db.add(Vehiculo(codigo=codigo))
+        db.commit()
+        mensaje = f"✅ Vehículo {codigo} agregado correctamente."
+    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
+
+@app.get("/crear_codigos", response_class=HTMLResponse)
+def crear_codigos(request: Request, db: Session = Depends(get_db)):
+    codigos = db.query(Vehiculo.codigo).all()
+    return templates.TemplateResponse("generar_codigos.html", {"request": request, "codigos": [c[0] for c in codigos]})
+
+@app.post("/crear_codigos/generar")
+def generar_codigos_pdf(codigos: str = Form(...)):
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    x, y = 50, 750
+
+    for codigo in codigos.split(","):
+        codigo = codigo.strip()
+        if not codigo:
+            continue
+        img_buffer = io.BytesIO()
+        barcode.get("code128", codigo, writer=ImageWriter()).write(img_buffer)
+        img_buffer.seek(0)
+        c.drawImage(ImageReader(img_buffer), x, y, width=200, height=60)
+        c.drawString(x, y - 15, codigo)
+        y -= 100
+        if y < 100:
+            c.showPage()
+            y = 750
+
+    c.save()
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment;filename=codigos.pdf"})
 
 if __name__ == "__main__":
     import uvicorn
