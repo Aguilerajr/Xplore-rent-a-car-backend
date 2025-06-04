@@ -1,12 +1,22 @@
 from fastapi import FastAPI, Form, Request, Depends
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import datetime
+import os
+import io
+import re
 from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-import os
+# Librerías para código de barras y PDF
+import barcode
+from barcode.writer import ImageWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
 
 # BASE DE DATOS VEHÍCULOS
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://...")
