@@ -18,15 +18,16 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
 
 # Base de datos principal (vehículos)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://...")
+# BASE DE DATOS VEHÍCULOS
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
 engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Base de datos empleados
-DATABASE_URL_EMPLEADOS = os.getenv("DATABASE_URL_EMPLEADOS", "postgresql://...")
+# BASE DE DATOS EMPLEADOS
+DATABASE_URL_EMPLEADOS = os.getenv("DATABASE_URL_EMPLEADOS", "postgresql://postgres:gFQOssQuCNFeLZqvKBNcERsRrxWEiZlJ@shuttle.proxy.rlwy.net:42664/railway")
 engine_empleados = create_engine(DATABASE_URL_EMPLEADOS)
-SessionEmpleados = sessionmaker(bind=engine_empleados)
+SessionEmpleados = sessionmaker(autocommit=False, autoflush=False, bind=engine_empleados)
 BaseEmpleados = declarative_base()
 
 # FastAPI app
