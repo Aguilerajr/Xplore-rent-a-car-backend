@@ -10,26 +10,37 @@ router = APIRouter()
 def checkin(
     codigo: str = Form(...),
     empleado: str = Form(...),
+    inicio: str = Form(...),  # <- Aceptamos ahora este campo
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
+    # Revisar si el empleado ya tiene un check-in activo
     activo = db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first()
     if activo:
         return {"error": "Ya tienes un check-in activo"}
 
+    # Verificar que el vehículo esté clasificado y en cola
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     en_cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo, estado="en_cola").first()
     if not clasificacion or not en_cola:
         return {"error": "Vehículo no disponible"}
 
+    # Obtener nombre del empleado
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
-    
+
+    # Convertir fecha de inicio (string -> datetime)
+    try:
+        inicio_dt = datetime.fromisoformat(inicio)
+    except Exception as e:
+        return {"error": f"Formato de fecha inválido: {str(e)}"}
+
+    # Crear nuevo registro de lavado
     nuevo = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
         nombre_empleado=nombre,
-        inicio=datetime.utcnow(),
+        inicio=inicio_dt,
         fin=None,
         tiempo_real=0,
         tiempo_estimado=clasificacion.tiempo_estimado,
@@ -37,6 +48,7 @@ def checkin(
     )
     db.add(nuevo)
     db.commit()
+
     return {"status": "checkin exitoso"}
 
 
