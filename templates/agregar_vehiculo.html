@@ -3,53 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <title>Agregar Vehículo</title>
-    <link rel="icon" href="/static/icon.png" type="image/png">
     <style>
-        body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 2em; }
-        .container { background: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-        h2 { color: #333; margin-bottom: 1em; }
-        label { display: block; margin-top: 1em; font-weight: bold; }
-        input[type="text"], select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        button { margin-top: 1em; width: 100%; padding: 10px; background: #28a745; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #218838; }
-        .mensaje { margin-top: 1em; font-weight: bold; color: green; }
-        .error { color: red; }
-        .regresar {
-            display: block;
-            text-align: center;
-            margin-top: 20px;
-            color: #007bff;
-            text-decoration: none;
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            padding: 40px;
         }
-        .regresar:hover { text-decoration: underline; }
+        form {
+            max-width: 400px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        label, input[type="text"], input[type="submit"] {
+            display: block;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .mensaje {
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+            color: green;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Agregar Vehículo Nuevo</h2>
-
+    <form method="post">
+        <h2>Agregar Vehículo</h2>
+        <label for="codigo">Código del Vehículo:</label>
+        <input type="text" name="codigo" id="codigo" required placeholder="Ej: P-1234">
+        <input type="submit" value="Agregar">
         {% if mensaje %}
-            <p class="mensaje {% if '❌' in mensaje %}error{% endif %}">{{ mensaje }}</p>
+            <div class="mensaje">{{ mensaje }}</div>
         {% endif %}
-
-        <form method="post">
-            <label for="letra">Letra (P, C, M o T):</label>
-            <select name="letra" required>
-                <option value="">Seleccione una letra</option>
-                <option value="P">P</option>
-                <option value="C">C</option>
-                <option value="M">M</option>
-                <option value="T">T</option>
-            </select>
-
-            <label for="digitos">4 Dígitos:</label>
-            <input type="text" name="digitos" maxlength="4" pattern="\d{4}" title="Debe tener exactamente 4 números" required>
-
-            <button type="submit">Agregar</button>
-        </form>
-
-        <!-- Ajuste: botón de regreso con el mismo estilo -->
-        <a href="/" class="regresar">Regresar al inicio</a>
-    </div>
+    </form>
 </body>
 </html>
