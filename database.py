@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:bgNLRBzPghPvzlMkAROLGTIrNlBcaVgt@crossover.proxy.rlwy.net:11506/railway")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:nBdGeUvCIPjXTDNhygtqTqMxUumrlvkN@shuttle.proxy.rlwy.net:10389/railway")
 DATABASE_URL_EMPLEADOS = "postgresql://postgres:gFQOssQuCNFeLZqvKBNcERsRrxWEiZlJ@shuttle.proxy.rlwy.net:42664/railway"
 
 engine = create_engine(DATABASE_URL)
