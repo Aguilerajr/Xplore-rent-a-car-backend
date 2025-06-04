@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Form, Request, Depends
 from fastapi.responses import HTMLResponse
-from sqlalchemy.orm import Session
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 from database import get_db
 from models import Vehiculo
 import re
@@ -24,8 +24,3 @@ def agregar_vehiculo(request: Request, codigo: str = Form(...), db: Session = De
         db.commit()
         mensaje = f"✅ Vehículo {codigo} agregado correctamente."
     return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
-
-@router.get("/buscar_codigos")
-def buscar_codigos(q: str, db: Session = Depends(get_db)):
-    resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.ilike(f"{q}%")).all()
-    return {"resultados": [r[0] for r in resultados]}
