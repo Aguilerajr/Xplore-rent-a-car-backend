@@ -159,36 +159,44 @@ def registrar_lavado(
         inicio_dt = datetime.fromisoformat(inicio)
         fin_dt = datetime.fromisoformat(fin)
         tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
+
         clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
         if not clasificacion:
             return {"error": "El vehículo no ha sido clasificado"}
+
+        # Obtener nombre del empleado
+        db_empleados = SessionEmpleados()
+        nombre_empleado = db_empleados.query(Empleado.nombre).filter_by(codigo=empleado).scalar()
+        db_empleados.close()
+
         tiempo_estimado = clasificacion.tiempo_estimado
         eficiencia = round((tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
+
         db.add(RegistroLavado(
             vehiculo=codigo,
-            empleado=empleado,
+            empleado=f"{empleado} - {nombre_empleado or 'Desconocido'}",
             inicio=inicio_dt,
             fin=fin_dt,
             tiempo_real=tiempo_real,
             tiempo_estimado=tiempo_estimado,
             eficiencia=f"{eficiencia}%"
         ))
-        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).update({"estado": "completado"})
+
+        # ✅ Marcar este registro como completado
+        db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
+
+        # ✅ Revisar si hay más empleados activos para ese vehículo
+        registros_en_proceso = db.query(RegistroLavado).filter(
+            RegistroLavado.vehiculo == codigo,
+            RegistroLavado.fin == None
+        ).count()
+
+        if registros_en_proceso == 0:
+            db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
+            db.query(Clasificacion).filter_by(codigo=codigo).delete()
+
         db.commit()
-
-        # Buscar nombre del empleado desde la segunda base de datos
-        db_emp = next(get_db_empleados())
-        nombre = db_emp.query(Empleado).filter_by(codigo=empleado).first()
-        nombre_str = nombre.nombre if nombre else "No encontrado"
-
-        return {
-            "status": "ok",
-            "vehiculo": codigo,
-            "empleado": empleado,
-            "nombre": nombre_str,
-            "eficiencia": f"{eficiencia}%",
-            "mensaje": f"✅ {nombre_str} registró el lavado con {eficiencia}% de eficiencia"
-        }
+        return {"status": "ok", "eficiencia": eficiencia}
     except Exception as e:
         return {"error": str(e)}
 
