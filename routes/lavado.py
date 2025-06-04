@@ -7,7 +7,12 @@ from datetime import datetime
 router = APIRouter()
 
 @router.post("/checkin")
-def checkin(codigo: str = Form(...), empleado: str = Form(...), db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
+def checkin(
+    codigo: str = Form(...),
+    empleado: str = Form(...),
+    db: Session = Depends(get_db),
+    db_emp: Session = Depends(get_db_empleados)
+):
     activo = db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first()
     if activo:
         return {"error": "Ya tienes un check-in activo"}
@@ -19,10 +24,15 @@ def checkin(codigo: str = Form(...), empleado: str = Form(...), db: Session = De
 
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
+    
     nuevo = RegistroLavado(
-        vehiculo=codigo, empleado=empleado, nombre_empleado=nombre,
-        inicio=datetime.utcnow(), fin=None,
-        tiempo_real=0, tiempo_estimado=clasificacion.tiempo_estimado,
+        vehiculo=codigo,
+        empleado=empleado,
+        nombre_empleado=nombre,
+        inicio=datetime.utcnow(),
+        fin=None,
+        tiempo_real=0,
+        tiempo_estimado=clasificacion.tiempo_estimado,
         eficiencia="0%"
     )
     db.add(nuevo)
@@ -30,8 +40,20 @@ def checkin(codigo: str = Form(...), empleado: str = Form(...), db: Session = De
     return {"status": "checkin exitoso"}
 
 @router.post("/registrar")
-def registrar_lavado(codigo: str = Form(...), empleado: str = Form(...), inicio: str = Form(...), fin: str = Form(...), db: Session = Depends(get_db)):
-    inicio_dt, fin_dt = datetime.fromisoformat(inicio), datetime.fromisoformat(fin)
+def registrar_lavado(
+    codigo: str = Form(...),
+    empleado: str = Form(...),
+    inicio: str = Form(...),
+    fin: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        formato = "%Y-%m-%d %H:%M:%S"
+        inicio_dt = datetime.strptime(inicio, formato)
+        fin_dt = datetime.strptime(fin, formato)
+    except ValueError:
+        return {"error": "Formato de fecha inválido"}
+
     tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
 
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
