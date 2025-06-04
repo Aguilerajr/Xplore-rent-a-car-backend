@@ -65,20 +65,6 @@
         .regresar:hover {
             text-decoration: underline;
         }
-        ul#sugerencias {
-            list-style: none;
-            padding: 0;
-            margin: 0.5em 0 0;
-            background: #eee;
-            border-radius: 4px;
-        }
-        ul#sugerencias li {
-            padding: 0.5em;
-            cursor: pointer;
-        }
-        ul#sugerencias li:hover {
-            background: #ddd;
-        }
     </style>
 </head>
 <body>
@@ -87,8 +73,8 @@
 
     <form action="/clasificar" method="post">
         <label for="codigo">Código:</label>
-        <input type="text" name="codigo" id="codigo" placeholder="Ej: P-1234" required autocomplete="off">
-        <ul id="sugerencias"></ul>
+        <input type="text" name="codigo" id="codigo" placeholder="Ej: P-1234" required list="sugerencias" autocomplete="off">
+        <datalist id="sugerencias"></datalist>
 
         <label for="suciedad">Nivel de suciedad:</label>
         <select name="suciedad" required>
@@ -132,10 +118,10 @@
     <!-- Botón para regresar al inicio -->
     <a class="regresar" href="/">Regresar al inicio</a>
 
-    <!-- Script para autocompletar código -->
+    <!-- Script para autocompletar -->
     <script>
         const input = document.getElementById('codigo');
-        const sugerencias = document.getElementById('sugerencias');
+        const datalist = document.getElementById('sugerencias');
 
         input.addEventListener('input', () => {
             const valor = input.value;
@@ -143,19 +129,15 @@
                 fetch(`/buscar_codigos?q=${valor}`)
                     .then(response => response.json())
                     .then(data => {
-                        sugerencias.innerHTML = '';
+                        datalist.innerHTML = '';
                         data.resultados.forEach(codigo => {
-                            const li = document.createElement('li');
-                            li.textContent = codigo;
-                            li.addEventListener('click', () => {
-                                input.value = codigo;
-                                sugerencias.innerHTML = '';
-                            });
-                            sugerencias.appendChild(li);
+                            const option = document.createElement('option');
+                            option.value = codigo;
+                            datalist.appendChild(option);
                         });
                     });
             } else {
-                sugerencias.innerHTML = '';
+                datalist.innerHTML = '';
             }
         });
     </script>
