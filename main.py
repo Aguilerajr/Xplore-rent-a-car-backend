@@ -147,7 +147,13 @@ def clasificar_vehiculo(request: Request, codigo: str = Form(...), suciedad: str
     return templates.TemplateResponse("calidad.html", {"request": request, "vehiculos": codigo, "mensaje": mensaje})
 
 @app.post("/registrar")
-def registrar_lavado(codigo: str = Form(...), empleado: str = Form(...), inicio: str = Form(...), fin: str = Form(...), db: Session = Depends(get_db)):
+def registrar_lavado(
+    codigo: str = Form(...),
+    empleado: str = Form(...),
+    inicio: str = Form(...),
+    fin: str = Form(...),
+    db: Session = Depends(get_db)
+):
     try:
         inicio_dt = datetime.fromisoformat(inicio)
         fin_dt = datetime.fromisoformat(fin)
@@ -155,10 +161,8 @@ def registrar_lavado(codigo: str = Form(...), empleado: str = Form(...), inicio:
         clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
         if not clasificacion:
             return {"error": "El vehículo no ha sido clasificado"}
-
         tiempo_estimado = clasificacion.tiempo_estimado
         eficiencia = round((tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-
         db.add(RegistroLavado(
             vehiculo=codigo,
             empleado=empleado,
@@ -168,17 +172,22 @@ def registrar_lavado(codigo: str = Form(...), empleado: str = Form(...), inicio:
             tiempo_estimado=tiempo_estimado,
             eficiencia=f"{eficiencia}%"
         ))
-
         db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).update({"estado": "completado"})
-
-        # Eliminar si ya nadie más trabaja en el vehículo
-        otros = db.query(RegistroLavado).filter(RegistroLavado.vehiculo == codigo, RegistroLavado.fin == None).count()
-        if otros == 0:
-            db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
-            db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
-
         db.commit()
-        return {"status": "ok", "eficiencia": eficiencia}
+
+        # Buscar nombre del empleado desde la segunda base de datos
+        db_emp = next(get_db_empleados())
+        nombre = db_emp.query(Empleado).filter_by(codigo=empleado).first()
+        nombre_str = nombre.nombre if nombre else "No encontrado"
+
+        return {
+            "status": "ok",
+            "vehiculo": codigo,
+            "empleado": empleado,
+            "nombre": nombre_str,
+            "eficiencia": f"{eficiencia}%",
+            "mensaje": f"✅ {nombre_str} registró el lavado con {eficiencia}% de eficiencia"
+        }
     except Exception as e:
         return {"error": str(e)}
 
