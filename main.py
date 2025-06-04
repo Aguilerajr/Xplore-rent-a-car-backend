@@ -63,6 +63,7 @@ class RegistroLavado(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     vehiculo = Column(String)
     empleado = Column(String)
+    nombre_empleado = Column(String)  # 🆕 Campo nuevo
     inicio = Column(DateTime)
     fin = Column(DateTime)
     tiempo_real = Column(Integer)
