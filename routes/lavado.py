@@ -39,21 +39,18 @@ def checkin(
     db.commit()
     return {"status": "checkin exitoso"}
 
+
 @router.post("/registrar")
 def registrar_lavado(
     codigo: str = Form(...),
     empleado: str = Form(...),
     inicio: str = Form(...),
     fin: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    db_emp: Session = Depends(get_db_empleados)
 ):
-    try:
-        formato = "%Y-%m-%d %H:%M:%S"
-        inicio_dt = datetime.strptime(inicio, formato)
-        fin_dt = datetime.strptime(fin, formato)
-    except ValueError:
-        return {"error": "Formato de fecha inválido"}
-
+    inicio_dt = datetime.fromisoformat(inicio)
+    fin_dt = datetime.fromisoformat(fin)
     tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
 
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
@@ -61,7 +58,7 @@ def registrar_lavado(
         return {"error": "No clasificado"}
 
     eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-    emp = Session(bind=db.get_bind()).query(Empleado).filter_by(codigo=empleado).first()
+    emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
     registro = db.query(RegistroLavado).filter_by(vehiculo=codigo, empleado=empleado, fin=None).first()
