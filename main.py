@@ -280,6 +280,14 @@ def agregar_vehiculo(request: Request, codigo: str = Form(...), db: Session = De
         mensaje = f"✅ Vehículo {codigo} agregado correctamente."
     return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
 
+@app.get("/verificar_disponibilidad")
+def verificar_disponibilidad(codigo: str, db: Session = Depends(get_db)):
+    clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
+    en_cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo, estado="en_cola").first()
+    if clasificacion and en_cola:
+        return {"disponible": True}
+    return {"disponible": False}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000)
