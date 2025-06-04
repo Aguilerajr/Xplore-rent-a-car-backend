@@ -32,10 +32,3 @@ app.include_router(lavado_router)
 app.include_router(empleados_router)
 app.include_router(vehiculos_router)
 app.include_router(codigos_router)
-
-
-from models import Base
-from database import engine
-
-# Esto creará todas las tablas definidas en models.py
-Base.metadata.create_all(bind=engine)
