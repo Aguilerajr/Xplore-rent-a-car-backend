@@ -31,7 +31,7 @@ def checkin(
 
     # Convertir fecha de inicio (string -> datetime)
     try:
-        inicio_dt = datetime.fromisoformat(inicio)
+        inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
         return {"error": f"Formato de fecha inválido: {str(e)}"}
 
