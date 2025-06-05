@@ -10,7 +10,7 @@ router = APIRouter()
 def checkin(
     codigo: str = Form(...),
     empleado: str = Form(...),
-    inicio: str = Form(...),  # <- Aceptamos ahora este campo
+    inicio: str = Form(...),
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
@@ -61,8 +61,12 @@ def registrar_lavado(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
-    fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
+    try:
+        inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
+        fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        return {"error": f"Error en formato de fecha: {str(e)}"}
+
     tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
 
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
@@ -81,11 +85,15 @@ def registrar_lavado(
     else:
         return {"error": "No hay check-in previo"}
 
+    # Marcar como completado
     db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
+    db.commit()
+
+    # Si no quedan lavadores activos en ese vehículo, eliminar de cola y clasificación
     activos = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
         db.query(Clasificacion).filter_by(codigo=codigo).delete()
+        db.commit()
 
-    db.commit()
     return {"status": "ok", "eficiencia": eficiencia}
