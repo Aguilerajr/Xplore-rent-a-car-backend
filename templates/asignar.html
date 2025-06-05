@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Asignar Vehículos a Empleados</title>
+    <title>Asignar Vehículo a Empleado</title>
     <link rel="icon" href="/static/icon.png" type="image/png">
     <style>
         body {
@@ -27,7 +27,7 @@
             display: block;
             margin-top: 15px;
         }
-        select, input[type="submit"] {
+        input[type="text"], input[type="submit"] {
             width: 100%;
             padding: 10px;
             margin-top: 5px;
@@ -39,6 +39,9 @@
             margin-top: 20px;
             font-size: 16px;
             color: green;
+        }
+        .error {
+            color: red;
         }
         .regresar {
             display: block;
@@ -56,29 +59,67 @@
 
     <h1>Asignar Vehículo a Empleado</h1>
 
-    <form method="post" action="/asignar">
-        <label for="codigo_vehiculo">Vehículo en cola:</label>
-        <select name="codigo_vehiculo" required>
-            {% for v in vehiculos %}
-                <option value="{{ v }}">{{ v }}</option>
-            {% endfor %}
-        </select>
+    <form method="post">
+        <label for="vehiculo">Vehículo en cola:</label>
+        <input type="text" name="vehiculo" id="vehiculo" list="vehiculos" required autocomplete="off">
+        <datalist id="vehiculos"></datalist>
 
-        <label for="codigo_empleado">Empleado disponible:</label>
-        <select name="codigo_empleado" required>
-            {% for e in empleados %}
-                <option value="{{ e }}">{{ e }}</option>
-            {% endfor %}
-        </select>
+        <label for="empleado">Empleado disponible:</label>
+        <input type="text" name="empleado" id="empleado" list="empleados" required autocomplete="off">
+        <datalist id="empleados"></datalist>
 
         <input type="submit" value="Asignar">
     </form>
 
     {% if mensaje %}
-        <div class="mensaje">{{ mensaje }}</div>
+        <div class="mensaje {% if '❌' in mensaje %}error{% endif %}">{{ mensaje }}</div>
     {% endif %}
 
     <a class="regresar" href="/">Regresar al inicio</a>
+
+    <script>
+        const inputVehiculo = document.getElementById('vehiculo');
+        const datalistVehiculo = document.getElementById('vehiculos');
+
+        inputVehiculo.addEventListener('input', () => {
+            const q = inputVehiculo.value;
+            if (q.length > 0) {
+                fetch(`/buscar_codigos?q=${q}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        datalistVehiculo.innerHTML = '';
+                        data.resultados.forEach(codigo => {
+                            const opt = document.createElement('option');
+                            opt.value = codigo;
+                            datalistVehiculo.appendChild(opt);
+                        });
+                    });
+            } else {
+                datalistVehiculo.innerHTML = '';
+            }
+        });
+
+        const inputEmpleado = document.getElementById('empleado');
+        const datalistEmpleado = document.getElementById('empleados');
+
+        inputEmpleado.addEventListener('input', () => {
+            const q = inputEmpleado.value;
+            if (q.length > 0) {
+                fetch(`/buscar_empleados?q=${q}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        datalistEmpleado.innerHTML = '';
+                        data.resultados.forEach(codigo => {
+                            const opt = document.createElement('option');
+                            opt.value = codigo;
+                            datalistEmpleado.appendChild(opt);
+                        });
+                    });
+            } else {
+                datalistEmpleado.innerHTML = '';
+            }
+        });
+    </script>
 
 </body>
 </html>
