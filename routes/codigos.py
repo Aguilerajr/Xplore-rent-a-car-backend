@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Form, Depends
+from fastapi import APIRouter, Request, Form, Depends, Query
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -58,3 +58,10 @@ def generar_codigos_pdf_o_png(codigos: str = Form(...)):
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=codigos.pdf"}
     )
+
+# 🔍 Ruta necesaria para el autocompletado en /calidad
+@router.get("/buscar_codigos")
+def buscar_codigos(q: str = Query(..., min_length=1), db: Session = Depends(get_db)):
+    resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.ilike(f"%{q}%")).limit(10).all()
+    codigos = [codigo[0] for codigo in resultados]
+    return {"resultados": codigos}
