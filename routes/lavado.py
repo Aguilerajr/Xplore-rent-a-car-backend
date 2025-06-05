@@ -61,8 +61,8 @@ def registrar_lavado(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    inicio_dt = datetime.fromisoformat(inicio)
-    fin_dt = datetime.fromisoformat(fin)
+    inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
+    fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
     tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
 
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
