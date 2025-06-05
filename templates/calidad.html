@@ -74,7 +74,13 @@
 <form action="/clasificar" method="post">
     <label for="codigo">Código:</label>
     <input type="text" name="codigo" id="codigo" placeholder="Ej: P-1234" required list="sugerencias" autocomplete="off">
-    <datalist id="sugerencias"></datalist>
+    <datalist id="sugerencias">
+        {% if vehiculos %}
+            {% for v in vehiculos %}
+                <option value="{{ v }}">
+            {% endfor %}
+        {% endif %}
+    </datalist>
 
     <label for="suciedad">Nivel de suciedad:</label>
     <select name="suciedad" required>
@@ -116,29 +122,6 @@
 </div>
 
 <a class="regresar" href="/">Regresar al inicio</a>
-
-<script>
-    const input = document.getElementById('codigo');
-    const datalist = document.getElementById('sugerencias');
-
-    input.addEventListener('input', () => {
-        const valor = input.value;
-        if (valor.length > 0) {
-            fetch(`/buscar_codigos?q=${valor}`)
-                .then(response => response.json())
-                .then(data => {
-                    datalist.innerHTML = '';
-                    data.resultados.forEach(codigo => {
-                        const option = document.createElement('option');
-                        option.value = codigo;
-                        datalist.appendChild(option);
-                    });
-                });
-        } else {
-            datalist.innerHTML = '';
-        }
-    });
-</script>
 
 </body>
 </html>
