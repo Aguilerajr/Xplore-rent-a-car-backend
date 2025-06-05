@@ -20,10 +20,9 @@ TIEMPOS_ESTIMADOS = {
 
 @router.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request, db: Session = Depends(get_db)):
-    vehiculos = db.query(Vehiculo.codigo).all()
-    codigos = [v[0] for v in vehiculos]
-    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
-    disponibles = [c for c in codigos if c not in {x[0] for x in completados}]
+    # Solo mostrar los vehículos que están actualmente "en_cola"
+    en_cola_actual = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "en_cola").all()
+    disponibles = [x[0] for x in en_cola_actual]
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": disponibles,
@@ -64,11 +63,8 @@ def clasificar_vehiculo(
             tiempo_estimado=tiempo_estimado
         ))
 
-        # Eliminar entradas anteriores en cola completadas
-        db.query(ColaLavado).filter(
-            ColaLavado.codigo_vehiculo == codigo,
-            ColaLavado.estado == "completado"
-        ).delete()
+        # Eliminar entradas anteriores en cola (cualquiera, para limpieza)
+        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
 
         # Insertar en cola de lavado como en_cola
         db.add(ColaLavado(
@@ -82,11 +78,9 @@ def clasificar_vehiculo(
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
-    # Actualizar lista de vehículos disponibles
-    vehiculos = db.query(Vehiculo.codigo).all()
-    codigos = [v[0] for v in vehiculos]
-    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
-    disponibles = [c for c in codigos if c not in {x[0] for x in completados}]
+    # Actualizar lista de vehículos que están actualmente en cola
+    en_cola_actual = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "en_cola").all()
+    disponibles = [x[0] for x in en_cola_actual]
 
     return templates.TemplateResponse("calidad.html", {
         "request": request,
