@@ -6,50 +6,90 @@
     <link rel="icon" href="/static/icon.png" type="image/png">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: #f4f4f4;
-            padding: 40px;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
         }
-        h1 {
+
+        .navbar {
+            background-color: #0066b2;
+            color: #fff;
+            padding: 15px;
             text-align: center;
-            color: #333;
-        }
-        form {
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 30px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
-        }
-        label {
+            font-size: 1.5em;
             font-weight: bold;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #003f6b;
+            margin-bottom: 20px;
+        }
+
+        label {
             display: block;
             margin-top: 15px;
+            font-weight: bold;
+            color: #444;
         }
-        input[type="text"], input[type="submit"] {
+
+        input[type="text"] {
             width: 100%;
             padding: 10px;
             margin-top: 5px;
-            border-radius: 4px;
             border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
         }
+
+        input[type="submit"] {
+            width: 100%;
+            padding: 12px;
+            margin-top: 25px;
+            background-color: #0066b2;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #004d8a;
+        }
+
         .mensaje {
-            text-align: center;
             margin-top: 20px;
-            font-size: 16px;
-            color: green;
+            text-align: center;
+            font-weight: bold;
         }
+
         .error {
             color: red;
         }
+
+        .success {
+            color: green;
+        }
+
         .regresar {
             display: block;
-            text-align: center;
             margin-top: 20px;
-            color: #007bff;
+            text-align: center;
             text-decoration: none;
+            color: #0066b2;
+            font-weight: bold;
         }
+
         .regresar:hover {
             text-decoration: underline;
         }
@@ -57,25 +97,31 @@
 </head>
 <body>
 
-    <h1>Asignar Vehículo a Empleado</h1>
+    <div class="navbar">
+        XPLORE Backend
+    </div>
 
-    <form method="post">
-        <label for="vehiculo">Vehículo en cola:</label>
-        <input type="text" name="vehiculo" id="vehiculo" list="vehiculos" required autocomplete="off">
-        <datalist id="vehiculos"></datalist>
+    <div class="container">
+        <h2>Asignar Vehículo a Empleado</h2>
 
-        <label for="empleado">Empleado disponible:</label>
-        <input type="text" name="empleado" id="empleado" list="empleados" required autocomplete="off">
-        <datalist id="empleados"></datalist>
+        <form method="post">
+            <label for="vehiculo">Vehículo en cola:</label>
+            <input type="text" name="vehiculo" id="vehiculo" list="vehiculos" required autocomplete="off">
+            <datalist id="vehiculos"></datalist>
 
-        <input type="submit" value="Asignar">
-    </form>
+            <label for="empleado">Empleado disponible:</label>
+            <input type="text" name="empleado" id="empleado" list="empleados" required autocomplete="off">
+            <datalist id="empleados"></datalist>
 
-    {% if mensaje %}
-        <div class="mensaje {% if '❌' in mensaje %}error{% endif %}">{{ mensaje }}</div>
-    {% endif %}
+            <input type="submit" value="Asignar">
+        </form>
 
-    <a class="regresar" href="/">Regresar al inicio</a>
+        {% if mensaje %}
+            <div class="mensaje {% if '❌' in mensaje %}error{% else %}success{% endif %}">{{ mensaje }}</div>
+        {% endif %}
+
+        <a class="regresar" href="/">← Regresar al inicio</a>
+    </div>
 
     <script>
         const inputVehiculo = document.getElementById('vehiculo');

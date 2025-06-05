@@ -5,21 +5,68 @@
     <title>XPLORE - Lobby</title>
     <link rel="icon" href="/static/icon.png" type="image/png">
     <style>
-        body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 2em; text-align: center; }
-        h1 { color: #333; margin-bottom: 1em; }
-        .menu { display: inline-block; background: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); padding: 2em; }
-        a { display: block; margin: 1em 0; color: #007bff; text-decoration: none; font-size: 1.2em; }
-        a:hover { text-decoration: underline; }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+        }
+
+        .navbar {
+            background-color: #0066b2;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 60px auto;
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 40px 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h2 {
+            margin-bottom: 30px;
+            color: #003f6b;
+        }
+
+        .menu-link {
+            display: block;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 15px;
+            margin: 12px 0;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        .menu-link:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
-    <div class="menu">
-        <h1>XPLORE Backend</h1>
-        <a href="/calidad">🔍 Clasificar Vehículo</a>
-        <a href="/agregar_vehiculo">➕ Agregar Vehículo Nuevo</a>
-        <a href="/crear_codigos">🔗 Generar Códigos de Barras</a>
-        <a href="/agregar_empleado">👤 Agregar Empleado</a>
-        <a href="/asignar">📋 Asignar Vehículo a Empleado</a>
+
+    <div class="navbar">
+        XPLORE Backend
     </div>
+
+    <div class="container">
+        <h2>Selecciona una acción</h2>
+        <a class="menu-link" href="/calidad">🔍 Clasificar Vehículo</a>
+        <a class="menu-link" href="/agregar_vehiculo">➕ Agregar Vehículo Nuevo</a>
+        <a class="menu-link" href="/crear_codigos">🔗 Generar Códigos de Barras</a>
+        <a class="menu-link" href="/agregar_empleado">👤 Agregar Empleado</a>
+        <a class="menu-link" href="/asignar">📋 Asignar Vehículo a Empleado</a>
+    </div>
+
 </body>
 </html>
