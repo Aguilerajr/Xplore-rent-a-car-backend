@@ -115,25 +115,23 @@
         </ul>
     </div>
 
-    <!-- Botón para regresar al inicio -->
     <a class="regresar" href="/">Regresar al inicio</a>
 
-    <!-- Script para autocompletar -->
     <script>
         const input = document.getElementById('codigo');
         const datalist = document.getElementById('sugerencias');
 
         input.addEventListener('input', () => {
             const valor = input.value;
-            if (valor.length > 0) {
+            if (valor.length >= 1) {
                 fetch(`/buscar_codigos?q=${valor}`)
-                    .then(response => response.json())
+                    .then(res => res.json())
                     .then(data => {
                         datalist.innerHTML = '';
-                        data.resultados.forEach(codigo => {
-                            const option = document.createElement('option');
-                            option.value = codigo;
-                            datalist.appendChild(option);
+                        data.resultados.forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c;
+                            datalist.appendChild(opt);
                         });
                     });
             } else {
