@@ -2,18 +2,10 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Clasificar Vehículo</title>
-    <link rel="icon" href="/static/icon.png" type="image/png">
+    <title>Asignar Vehículos a Empleado</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f4f4f4;
-            padding: 40px;
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 40px; }
+        h1 { text-align: center; color: #333; }
         form {
             max-width: 500px;
             margin: 0 auto;
@@ -22,12 +14,8 @@
             border-radius: 8px;
             box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
         }
-        label {
-            font-weight: bold;
-            display: block;
-            margin-top: 15px;
-        }
-        select, input[type="submit"], input[type="text"] {
+        label { font-weight: bold; display: block; margin-top: 15px; }
+        input, select, button {
             width: 100%;
             padding: 10px;
             margin-top: 5px;
@@ -40,21 +28,6 @@
             font-size: 16px;
             color: green;
         }
-        .lista {
-            max-width: 500px;
-            margin: 20px auto;
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
-        }
-        .lista h2 {
-            text-align: center;
-        }
-        ul {
-            list-style: disc;
-            padding-left: 20px;
-        }
         .regresar {
             display: block;
             text-align: center;
@@ -62,83 +35,56 @@
             color: #007bff;
             text-decoration: none;
         }
-        .regresar:hover {
-            text-decoration: underline;
-        }
+        .regresar:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
+    <h1>Asignar Vehículo a Empleado</h1>
+    <form method="post" action="/asignar">
+        <label for="vehiculo">Vehículo en cola:</label>
+        <input type="text" name="vehiculo" id="vehiculo" list="vehiculosList" required>
+        <datalist id="vehiculosList"></datalist>
 
-    <h1>Clasificar Vehículo</h1>
+        <label for="empleado">Empleado disponible:</label>
+        <input type="text" name="empleado" id="empleado" list="empleadosList" required>
+        <datalist id="empleadosList"></datalist>
 
-    <form action="/clasificar" method="post">
-        <label for="codigo">Código:</label>
-        <input type="text" name="codigo" id="codigo" placeholder="Ej: P-1234" required list="sugerencias" autocomplete="off">
-        <datalist id="sugerencias"></datalist>
-
-        <label for="suciedad">Nivel de suciedad:</label>
-        <select name="suciedad" required>
-            <option value="Muy sucio">Muy sucio</option>
-            <option value="Normal">Normal</option>
-            <option value="Poco sucio">Poco sucio</option>
-            <option value="Shampuseado">Shampuseado</option>
-            <option value="Franeleado">Franeleado</option>
-        </select>
-
-        <label for="tipo">Tipo de vehículo:</label>
-        <select name="tipo" required>
-            <option value="Camioneta Grande">Camioneta Grande</option>
-            <option value="Camioneta pequeña">Camioneta pequeña</option>
-            <option value="Busito">Busito</option>
-            <option value="Pick Up">Pick Up</option>
-            <option value="Turismo normal">Turismo normal</option>
-            <option value="Turismo pequeño">Turismo pequeño</option>
-        </select>
-
-        <input type="submit" value="Clasificar">
+        <button type="submit">Asignar</button>
     </form>
 
     {% if mensaje %}
         <div class="mensaje">{{ mensaje }}</div>
     {% endif %}
 
-    <div class="lista">
-        <h2>Vehículos registrados:</h2>
-        <ul>
-            {% if vehiculos %}
-                {% for codigo in vehiculos %}
-                    <li>{{ codigo }}</li>
-                {% endfor %}
-            {% else %}
-                <li>No hay vehículos registrados aún</li>
-            {% endif %}
-        </ul>
-    </div>
-
     <a class="regresar" href="/">Regresar al inicio</a>
 
+    <!-- Scripts para autocompletar -->
     <script>
-        const input = document.getElementById('codigo');
-        const datalist = document.getElementById('sugerencias');
+        function fetchSugerencias(inputId, datalistId, endpoint) {
+            const input = document.getElementById(inputId);
+            const datalist = document.getElementById(datalistId);
 
-        input.addEventListener('input', () => {
-            const valor = input.value;
-            if (valor.length >= 1) {
-                fetch(`/buscar_codigos?q=${valor}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        datalist.innerHTML = '';
-                        data.resultados.forEach(c => {
-                            const opt = document.createElement('option');
-                            opt.value = c;
-                            datalist.appendChild(opt);
+            input.addEventListener('input', () => {
+                const valor = input.value;
+                if (valor.length > 0) {
+                    fetch(`/${endpoint}?q=${valor}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            datalist.innerHTML = '';
+                            data.resultados.forEach(codigo => {
+                                const option = document.createElement('option');
+                                option.value = codigo;
+                                datalist.appendChild(option);
+                            });
                         });
-                    });
-            } else {
-                datalist.innerHTML = '';
-            }
-        });
-    </script>
+                } else {
+                    datalist.innerHTML = '';
+                }
+            });
+        }
 
+        fetchSugerencias("vehiculo", "vehiculosList", "buscar_codigos");
+        fetchSugerencias("empleado", "empleadosList", "buscar_empleados");
+    </script>
 </body>
 </html>

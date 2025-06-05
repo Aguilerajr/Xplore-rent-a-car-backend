@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db, get_db_empleados
@@ -10,42 +10,45 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/asignar", response_class=HTMLResponse)
 def mostrar_asignacion(request: Request, db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
-    vehiculos = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
-    empleados = db_emp.query(Empleado.codigo).all()
     return templates.TemplateResponse("asignar.html", {
         "request": request,
-        "vehiculos": [v[0] for v in vehiculos],
-        "empleados": [e[0] for e in empleados],
         "mensaje": ""
     })
 
 @router.post("/asignar", response_class=HTMLResponse)
 def asignar_vehiculo(
     request: Request,
-    codigo_vehiculo: str = Form(...),
-    codigo_empleado: str = Form(...),
+    vehiculo: str = Form(...),
+    empleado: str = Form(...),
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    # Validaciones opcionales aquí
-    vehiculo = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo_vehiculo, estado="en_cola").first()
-    empleado = db_emp.query(Empleado).filter_by(codigo=codigo_empleado).first()
+    vehiculo_obj = db.query(ColaLavado).filter_by(codigo_vehiculo=vehiculo, estado="en_cola").first()
+    empleado_obj = db_emp.query(Empleado).filter_by(codigo=empleado).first()
 
-    if not vehiculo:
-        mensaje = f"❌ El vehículo {codigo_vehiculo} no está disponible en cola."
-    elif not empleado:
-        mensaje = f"❌ El empleado con código {codigo_empleado} no existe."
+    if not vehiculo_obj:
+        mensaje = f"❌ El vehículo {vehiculo} no está en cola."
+    elif not empleado_obj:
+        mensaje = f"❌ El empleado {empleado} no existe."
     else:
-        vehiculo.asignado_a = codigo_empleado
+        vehiculo_obj.asignado_a = empleado
         db.commit()
-        mensaje = f"✅ Vehículo {codigo_vehiculo} asignado a empleado {codigo_empleado}."
+        mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
 
-    # Volver a cargar la lista
-    vehiculos = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
-    empleados = db_emp.query(Empleado.codigo).all()
     return templates.TemplateResponse("asignar.html", {
         "request": request,
-        "vehiculos": [v[0] for v in vehiculos],
-        "empleados": [e[0] for e in empleados],
         "mensaje": mensaje
     })
+
+@router.get("/buscar_empleados")
+def buscar_empleados(q: str, db: Session = Depends(get_db_empleados)):
+    resultados = db.query(Empleado.codigo).filter(Empleado.codigo.ilike(f"%{q}%")).all()
+    return {"resultados": [r[0] for r in resultados]}
+
+@router.get("/buscar_codigos")
+def buscar_codigos(q: str, db: Session = Depends(get_db)):
+    resultados = db.query(ColaLavado.codigo_vehiculo).filter(
+        ColaLavado.codigo_vehiculo.ilike(f"%{q}%"),
+        ColaLavado.estado == "en_cola"
+    ).all()
+    return {"resultados": [r[0] for r in resultados]}
