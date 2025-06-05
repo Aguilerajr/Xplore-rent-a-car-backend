@@ -20,15 +20,12 @@ TIEMPOS_ESTIMADOS = {
 
 @router.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request, db: Session = Depends(get_db)):
-    # Obtener todos los vehículos existentes
     todos = db.query(Vehiculo.codigo).all()
     codigos = [v[0] for v in todos]
 
-    # Filtrar los que ya están clasificados
     clasificados = db.query(Clasificacion.codigo).all()
     codigos_clasificados = {c[0] for c in clasificados}
 
-    # Mostrar solo los NO clasificados
     disponibles = [c for c in codigos if c not in codigos_clasificados]
 
     return templates.TemplateResponse("calidad.html", {
@@ -36,7 +33,6 @@ def mostrar_formulario(request: Request, db: Session = Depends(get_db)):
         "vehiculos": disponibles,
         "mensaje": ""
     })
-
 
 @router.post("/clasificar", response_class=HTMLResponse)
 def clasificar_vehiculo(
@@ -46,57 +42,63 @@ def clasificar_vehiculo(
     tipo: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    clasificacion_map = {"Muy sucio": "1", "Normal": "2", "Poco sucio": "3", "Shampuseado": "4", "Franeleado": "5"}
-    tipo_map = {
-        "Camioneta Grande": "A", "Camioneta pequeña": "B", "Busito": "C",
-        "Pick Up": "D", "Turismo normal": "E", "Turismo pequeño": "F"
-    }
+    try:
+        clasificacion_map = {
+            "Muy sucio": "1", "Normal": "2", "Poco sucio": "3",
+            "Shampuseado": "4", "Franeleado": "5"
+        }
+        tipo_map = {
+            "Camioneta Grande": "A", "Camioneta pequeña": "B", "Busito": "C",
+            "Pick Up": "D", "Turismo normal": "E", "Turismo pequeño": "F"
+        }
 
-    grado = clasificacion_map.get(suciedad)
-    tipo_vehiculo = tipo_map.get(tipo)
+        grado = clasificacion_map.get(suciedad)
+        tipo_vehiculo = tipo_map.get(tipo)
 
-    if not grado or not tipo_vehiculo:
-        mensaje = "❌ Clasificación inválida"
-    else:
-        clasificacion = tipo_vehiculo + grado
-        tiempo_estimado = TIEMPOS_ESTIMADOS.get(clasificacion, 18)
+        if not grado or not tipo_vehiculo:
+            mensaje = "❌ Clasificación inválida"
+        else:
+            clasificacion = tipo_vehiculo + grado
+            tiempo_estimado = TIEMPOS_ESTIMADOS.get(clasificacion, 18)
 
-        # Eliminar clasificaciones anteriores
-        db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
+            db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
 
-        # Agregar nueva clasificación
-        db.add(Clasificacion(
-            codigo=codigo,
-            clasificacion=clasificacion,
-            revisado_por="Calidad",
-            tiempo_estimado=tiempo_estimado
-        ))
+            db.add(Clasificacion(
+                codigo=codigo,
+                clasificacion=clasificacion,
+                revisado_por="Calidad",
+                tiempo_estimado=tiempo_estimado
+            ))
 
-        # Eliminar entradas anteriores en cola (cualquiera, para limpieza)
-        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
+            db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
 
-        # Insertar en cola de lavado como en_cola
-        db.add(ColaLavado(
-            codigo_vehiculo=codigo,
-            clasificacion=clasificacion,
-            fecha=datetime.utcnow(),
-            semana=datetime.utcnow().isocalendar()[1],
-            estado="en_cola"
-        ))
+            db.add(ColaLavado(
+                codigo_vehiculo=codigo,
+                clasificacion=clasificacion,
+                fecha=datetime.utcnow(),
+                semana=datetime.utcnow().isocalendar()[1],
+                estado="en_cola"
+            ))
 
-        db.commit()
-        mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
+            db.commit()
+            mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
-    # Actualizar lista de vehículos que están actualmente en cola
-    vehiculos = db.query(Vehiculo.codigo).all()
-    disponibles = [v[0] for v in vehiculos]
+        todos = db.query(Vehiculo.codigo).all()
+        clasificados = db.query(Clasificacion.codigo).all()
+        codigos_clasificados = {c[0] for c in clasificados}
+        disponibles = [v[0] for v in todos if v[0] not in codigos_clasificados]
 
+        return templates.TemplateResponse("calidad.html", {
+            "request": request,
+            "vehiculos": disponibles,
+            "mensaje": mensaje
+        })
 
-    return templates.TemplateResponse("calidad.html", {
-        "request": request,
-        "vehiculos": disponibles,
-        "mensaje": mensaje
-    })
+    except Exception as e:
+        return HTMLResponse(
+            content=f"<h1>Error interno del servidor</h1><p>{str(e)}</p>",
+            status_code=500
+        )
 
 @router.get("/verificar_disponibilidad")
 def verificar_disponibilidad(codigo: str, db: Session = Depends(get_db)):
