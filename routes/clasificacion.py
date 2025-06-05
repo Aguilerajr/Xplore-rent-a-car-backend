@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db
@@ -20,23 +20,15 @@ TIEMPOS_ESTIMADOS = {
 
 @router.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request, db: Session = Depends(get_db)):
-    # Obtener todos los vehículos existentes
-    todos = db.query(Vehiculo.codigo).all()
-    codigos = [v[0] for v in todos]
-
-    # Filtrar los que ya están clasificados
-    clasificados = db.query(Clasificacion.codigo).all()
-    codigos_clasificados = {c[0] for c in clasificados}
-
-    # Mostrar solo los NO clasificados
-    disponibles = [c for c in codigos if c not in codigos_clasificados]
-
+    vehiculos = db.query(Vehiculo.codigo).all()
+    codigos = [v[0] for v in vehiculos]
+    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
+    disponibles = [c for c in codigos if c not in {x[0] for x in completados}]
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": disponibles,
         "mensaje": ""
     })
-
 
 @router.post("/clasificar", response_class=HTMLResponse)
 def clasificar_vehiculo(
@@ -61,10 +53,8 @@ def clasificar_vehiculo(
         clasificacion = tipo_vehiculo + grado
         tiempo_estimado = TIEMPOS_ESTIMADOS.get(clasificacion, 18)
 
-        # Eliminar clasificaciones anteriores
         db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
 
-        # Agregar nueva clasificación
         db.add(Clasificacion(
             codigo=codigo,
             clasificacion=clasificacion,
@@ -72,10 +62,11 @@ def clasificar_vehiculo(
             tiempo_estimado=tiempo_estimado
         ))
 
-        # Eliminar entradas anteriores en cola (cualquiera, para limpieza)
-        db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
+        db.query(ColaLavado).filter(
+            ColaLavado.codigo_vehiculo == codigo,
+            ColaLavado.estado == "completado"
+        ).delete()
 
-        # Insertar en cola de lavado como en_cola
         db.add(ColaLavado(
             codigo_vehiculo=codigo,
             clasificacion=clasificacion,
@@ -87,10 +78,10 @@ def clasificar_vehiculo(
         db.commit()
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
-    # Actualizar lista de vehículos que están actualmente en cola
     vehiculos = db.query(Vehiculo.codigo).all()
-    disponibles = [v[0] for v in vehiculos]
-
+    codigos = [v[0] for v in vehiculos]
+    completados = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "completado").all()
+    disponibles = [c for c in codigos if c not in {x[0] for x in completados}]
 
     return templates.TemplateResponse("calidad.html", {
         "request": request,
@@ -98,8 +89,7 @@ def clasificar_vehiculo(
         "mensaje": mensaje
     })
 
-@router.get("/verificar_disponibilidad")
-def verificar_disponibilidad(codigo: str, db: Session = Depends(get_db)):
-    clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
-    en_cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo, estado="en_cola").first()
-    return {"disponible": bool(clasificacion and en_cola)}
+@router.get("/buscar_codigos")
+def buscar_codigos(q: str = "", db: Session = Depends(get_db)):
+    codigos = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.ilike(f"%{q}%")).all()
+    return {"resultados": [c[0] for c in codigos]}
