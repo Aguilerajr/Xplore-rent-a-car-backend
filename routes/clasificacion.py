@@ -79,8 +79,9 @@ def clasificar_vehiculo(
         mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
 
     # Actualizar lista de vehículos que están actualmente en cola
-    en_cola_actual = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "en_cola").all()
-    disponibles = [x[0] for x in en_cola_actual]
+    vehiculos = db.query(Vehiculo.codigo).all()
+    disponibles = [v[0] for v in vehiculos]
+
 
     return templates.TemplateResponse("calidad.html", {
         "request": request,
