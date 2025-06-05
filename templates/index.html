@@ -13,11 +13,14 @@
 
         .navbar {
             background-color: #0066b2;
-            color: #fff;
-            padding: 20px;
-            text-align: center;
-            font-size: 1.8em;
-            font-weight: bold;
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+        }
+
+        .navbar img {
+            height: 50px;
+            cursor: pointer;
         }
 
         .container {
@@ -56,7 +59,9 @@
 <body>
 
     <div class="navbar">
-        XPLORE Backend
+        <a href="/">
+            <img src="/static/logo_xplore.png" alt="XPLORE">
+        </a>
     </div>
 
     <div class="container">
