@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Asignar Vehículos a Empleados</title>
+    <link rel="icon" href="/static/icon.png" type="image/png">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            padding: 40px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        form {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 30px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 15px;
+        }
+        select, input[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .mensaje {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 16px;
+            color: green;
+        }
+        .regresar {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .regresar:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Asignar Vehículo a Empleado</h1>
+
+    <form method="post" action="/asignar">
+        <label for="codigo_vehiculo">Vehículo en cola:</label>
+        <select name="codigo_vehiculo" required>
+            {% for v in vehiculos %}
+                <option value="{{ v }}">{{ v }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="codigo_empleado">Empleado disponible:</label>
+        <select name="codigo_empleado" required>
+            {% for e in empleados %}
+                <option value="{{ e }}">{{ e }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="submit" value="Asignar">
+    </form>
+
+    {% if mensaje %}
+        <div class="mensaje">{{ mensaje }}</div>
+    {% endif %}
+
+    <a class="regresar" href="/">Regresar al inicio</a>
+
+</body>
+</html>
