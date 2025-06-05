@@ -21,6 +21,8 @@ class ColaLavado(Base):
     fecha = Column(DateTime, default=datetime.utcnow)
     semana = Column(Integer)
     estado = Column(String)
+    asignado_a = Column(String, nullable=True)
+
 
 class RegistroLavado(Base):
     __tablename__ = "registros_lavado"
