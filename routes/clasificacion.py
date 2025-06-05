@@ -20,14 +20,23 @@ TIEMPOS_ESTIMADOS = {
 
 @router.get("/calidad", response_class=HTMLResponse)
 def mostrar_formulario(request: Request, db: Session = Depends(get_db)):
-    # Solo mostrar los vehículos que están actualmente "en_cola"
-    en_cola_actual = db.query(ColaLavado.codigo_vehiculo).filter(ColaLavado.estado == "en_cola").all()
-    disponibles = [x[0] for x in en_cola_actual]
+    # Obtener todos los vehículos existentes
+    todos = db.query(Vehiculo.codigo).all()
+    codigos = [v[0] for v in todos]
+
+    # Filtrar los que ya están clasificados
+    clasificados = db.query(Clasificacion.codigo).all()
+    codigos_clasificados = {c[0] for c in clasificados}
+
+    # Mostrar solo los NO clasificados
+    disponibles = [c for c in codigos if c not in codigos_clasificados]
+
     return templates.TemplateResponse("calidad.html", {
         "request": request,
         "vehiculos": disponibles,
         "mensaje": ""
     })
+
 
 @router.post("/clasificar", response_class=HTMLResponse)
 def clasificar_vehiculo(
