@@ -10,8 +10,13 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/asignar", response_class=HTMLResponse)
 def mostrar_asignacion(request: Request, db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
+    # Filtrar solo los vehículos que están en estado "en_cola"
+    vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
+    disponibles = [v[0] for v in vehiculos_en_cola]
+
     return templates.TemplateResponse("asignar.html", {
         "request": request,
+        "vehiculos": disponibles,
         "mensaje": ""
     })
 
@@ -35,8 +40,13 @@ def asignar_vehiculo(
         db.commit()
         mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
 
+    # Volver a cargar vehículos en cola actualizados
+    vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
+    disponibles = [v[0] for v in vehiculos_en_cola]
+
     return templates.TemplateResponse("asignar.html", {
         "request": request,
+        "vehiculos": disponibles,
         "mensaje": mensaje
     })
 
