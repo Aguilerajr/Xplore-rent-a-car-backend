@@ -1,5 +1,5 @@
 from fastapi import Request
-from starlette.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 # Contraseña maestra (puedes cambiarla)
 CLAVE_ACCESO = "admin123"
@@ -13,9 +13,9 @@ def verificar_acceso(request: Request) -> bool:
     """
     return request.cookies.get(NOMBRE_COOKIE) == "true"
 
-def obtener_login_response():
+def obtener_login_response() -> str:
     """
-    Retorna un formulario de login en HTML simple.
+    Retorna un formulario de login en HTML simple como string.
     """
     return """
     <!DOCTYPE html>
@@ -67,14 +67,14 @@ def ruta_login(router, ruta="/login"):
     """
     Crea una ruta de login básica que verifica la clave y establece una cookie de sesión.
     """
-    @router.get(ruta)
+    @router.get(ruta, response_class=HTMLResponse)
     def mostrar_login():
-        return obtener_login_response()
+        return HTMLResponse(content=obtener_login_response())
 
-    @router.post(ruta)
+    @router.post(ruta, response_class=HTMLResponse)
     def procesar_login(clave: str = ""):
         if clave == CLAVE_ACCESO:
             response = RedirectResponse("/", status_code=302)
             response.set_cookie(key=NOMBRE_COOKIE, value="true", httponly=True)
             return response
-        return obtener_login_response()
+        return HTMLResponse(content=obtener_login_response())
