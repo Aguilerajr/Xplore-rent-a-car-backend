@@ -12,7 +12,13 @@ from routes.vehiculos import router as vehiculos_router
 from routes.codigos import router as codigos_router
 from routes.asignar import router as asignar_router
 
+# Importar protección de login
+from auth import ruta_login
+
 app = FastAPI()
+
+# Activar ruta /login con protección
+ruta_login(app)
 
 # Configuración de rutas y templates
 BASE_DIR = Path(__file__).resolve().parent
@@ -22,7 +28,7 @@ STATIC_DIR = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
-# Página principal (evita el error "Not Found" en /)
+# Página principal
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})

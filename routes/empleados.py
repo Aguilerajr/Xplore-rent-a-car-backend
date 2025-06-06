@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Form, Request, Depends
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from fastapi.templating import Jinja2Templates
 from database import get_db_empleados
 from models import Empleado
 import re
+from auth import verificar_acceso  # 👈 protección
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -18,10 +19,16 @@ def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
 
 @router.get("/agregar_empleado", response_class=HTMLResponse)
 def mostrar_formulario_empleado(request: Request):
+    if not verificar_acceso(request):  # 👈 Protección GET
+        return RedirectResponse("/login", status_code=302)
+
     return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
 
 @router.post("/agregar_empleado", response_class=HTMLResponse)
 def agregar_empleado(request: Request, codigo: str = Form(...), nombre: str = Form(...), db: Session = Depends(get_db_empleados)):
+    if not verificar_acceso(request):  # 👈 Protección POST
+        return RedirectResponse("/login", status_code=302)
+
     if not re.fullmatch(r"\d{4}", codigo):
         mensaje = "❌ El código debe tener 4 dígitos."
     elif db.query(Empleado).filter_by(codigo=codigo).first():
