@@ -39,49 +39,64 @@ def clasificar_vehiculo(
     request: Request,
     codigo: str = Form(...),
     suciedad: str = Form(...),
-    tipo: str = Form(...),
     db: Session = Depends(get_db)
 ):
     try:
-        clasificacion_map = {
-            "Muy sucio": "1", "Normal": "2", "Poco sucio": "3",
-            "Shampuseado": "4", "Franeleado": "5"
-        }
-        tipo_map = {
-            "Camioneta Grande": "A", "Camioneta pequeña": "B", "Busito": "C",
-            "Pick Up": "D", "Turismo normal": "E", "Turismo pequeño": "F"
-        }
-
-        grado = clasificacion_map.get(suciedad)
-        tipo_vehiculo = tipo_map.get(tipo)
-
-        if not grado or not tipo_vehiculo:
-            mensaje = "❌ Clasificación inválida"
+        # Buscar vehículo en DB
+        vehiculo = db.query(Vehiculo).filter_by(codigo=codigo).first()
+        if not vehiculo:
+            mensaje = "❌ Vehículo no encontrado"
         else:
-            clasificacion = tipo_vehiculo + grado
-            tiempo_estimado = TIEMPOS_ESTIMADOS.get(clasificacion, 18)
+            modelo = vehiculo.modelo.lower().strip()
+            tipo_original = vehiculo.tipo.lower().strip()
 
-            db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
+            if modelo in ["swift dzire", "soluto"]:
+                tipo_final = "Turismo pequeño"
+            elif modelo == "ciaz":
+                tipo_final = "Turismo normal"
+            elif tipo_original == "camioneta mediana":
+                tipo_final = "Camioneta pequeña"
+            else:
+                tipo_final = vehiculo.tipo
 
-            db.add(Clasificacion(
-                codigo=codigo,
-                clasificacion=clasificacion,
-                revisado_por="Calidad",
-                tiempo_estimado=tiempo_estimado
-            ))
+            clasificacion_map = {
+                "Muy sucio": "1", "Normal": "2", "Poco sucio": "3",
+                "Shampuseado": "4", "Franeleado": "5"
+            }
 
-            db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
+            tipo_map = {
+                "Camioneta Grande": "A", "Camioneta pequeña": "B", "Busito": "C",
+                "Pick Up": "D", "Turismo normal": "E", "Turismo pequeño": "F"
+            }
 
-            db.add(ColaLavado(
-                codigo_vehiculo=codigo,
-                clasificacion=clasificacion,
-                fecha=datetime.utcnow(),
-                semana=datetime.utcnow().isocalendar()[1],
-                estado="en_cola"
-            ))
+            grado = clasificacion_map.get(suciedad)
+            tipo_vehiculo = tipo_map.get(tipo_final)
 
-            db.commit()
-            mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo} ({clasificacion})"
+            if not grado or not tipo_vehiculo:
+                mensaje = "❌ Clasificación inválida"
+            else:
+                clasificacion = tipo_vehiculo + grado
+                tiempo_estimado = TIEMPOS_ESTIMADOS.get(clasificacion, 18)
+
+                db.query(Clasificacion).filter(Clasificacion.codigo == codigo).delete()
+                db.add(Clasificacion(
+                    codigo=codigo,
+                    clasificacion=clasificacion,
+                    revisado_por="Calidad",
+                    tiempo_estimado=tiempo_estimado
+                ))
+
+                db.query(ColaLavado).filter(ColaLavado.codigo_vehiculo == codigo).delete()
+                db.add(ColaLavado(
+                    codigo_vehiculo=codigo,
+                    clasificacion=clasificacion,
+                    fecha=datetime.utcnow(),
+                    semana=datetime.utcnow().isocalendar()[1],
+                    estado="en_cola"
+                ))
+
+                db.commit()
+                mensaje = f"✅ {codigo} clasificado como {suciedad} - {tipo_final} ({clasificacion})"
 
         todos = db.query(Vehiculo.codigo).all()
         clasificados = db.query(Clasificacion.codigo).all()
