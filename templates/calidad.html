@@ -122,7 +122,7 @@
 <body>
 
     <div class="navbar">
-        <a href="/"><img src="/static/logo_xplore.png" alt="XPLORE Logo"> XPLORE Backend</a>
+        <a href="/"><img src="/static/logo_xplore.png" alt="XPLORE Logo"></a>
     </div>
 
     <div class="container">
@@ -154,19 +154,6 @@
         {% if mensaje %}
             <div class="mensaje">{{ mensaje }}</div>
         {% endif %}
-    </div>
-
-    <div class="lista">
-        <h3>Vehículos registrados:</h3>
-        <ul>
-            {% if vehiculos %}
-                {% for codigo in vehiculos %}
-                    <li>{{ codigo }}</li>
-                {% endfor %}
-            {% else %}
-                <li>No hay vehículos registrados aún</li>
-            {% endif %}
-        </ul>
     </div>
 
     <a class="regresar" href="/">← Regresar al inicio</a>
