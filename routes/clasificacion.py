@@ -42,22 +42,29 @@ def clasificar_vehiculo(
     db: Session = Depends(get_db)
 ):
     try:
-        # Buscar vehículo en DB
         vehiculo = db.query(Vehiculo).filter_by(codigo=codigo).first()
         if not vehiculo:
             mensaje = "❌ Vehículo no encontrado"
         else:
             modelo = vehiculo.modelo.lower().strip()
-            tipo_original = vehiculo.tipo.lower().strip()
+            tipo_bd = vehiculo.tipo.lower().strip()
+            letra = codigo[0].upper()
 
+            # Clasificación automática
             if modelo in ["swift dzire", "soluto"]:
                 tipo_final = "Turismo pequeño"
             elif modelo == "ciaz":
                 tipo_final = "Turismo normal"
-            elif tipo_original == "camioneta mediana":
-                tipo_final = "Camioneta pequeña"
+            elif letra == "P":
+                tipo_final = "Pick Up"
+            elif letra == "M":
+                tipo_final = "Busito"
+            elif letra == "C":
+                tipo_final = "Camioneta pequeña" if "mediana" in tipo_bd else "Camioneta Grande"
+            elif letra == "T":
+                tipo_final = tipo_bd.title()
             else:
-                tipo_final = vehiculo.tipo
+                tipo_final = tipo_bd.title()
 
             clasificacion_map = {
                 "Muy sucio": "1", "Normal": "2", "Poco sucio": "3",
