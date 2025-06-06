@@ -12,6 +12,7 @@ from routes.vehiculos import router as vehiculos_router
 from routes.codigos import router as codigos_router
 from routes.asignar import router as asignar_router
 from routes.proteccion import router as proteccion_router
+from routes.rutas_login import router as login_router
 
 
 
@@ -40,3 +41,5 @@ app.include_router(vehiculos_router)
 app.include_router(codigos_router)
 app.include_router(asignar_router)
 app.include_router(proteccion_router)
+app.include_router(login_router)
+
