@@ -72,9 +72,13 @@ def ruta_login(router, ruta="/login"):
         return HTMLResponse(content=obtener_login_response())
 
     @router.post(ruta, response_class=HTMLResponse)
-    def procesar_login(clave: str = ""):
+    async def procesar_login(request: Request):
+        form = await request.form()
+        clave = form.get("clave")
+
         if clave == CLAVE_ACCESO:
             response = RedirectResponse("/", status_code=302)
             response.set_cookie(key=NOMBRE_COOKIE, value="true", httponly=True)
             return response
+
         return HTMLResponse(content=obtener_login_response())
