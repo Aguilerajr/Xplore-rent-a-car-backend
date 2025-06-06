@@ -5,6 +5,9 @@ from database import Base, BaseEmpleados
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
     codigo = Column(String, primary_key=True)
+    marca = Column(String)
+    modelo = Column(String)  # 👈 esta línea debe existir
+    tipo = Column(String)    # 👈 esta también
 
 class Clasificacion(Base):
     __tablename__ = "clasificaciones"
