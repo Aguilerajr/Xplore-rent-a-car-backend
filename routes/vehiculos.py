@@ -19,13 +19,9 @@ def mostrar_formulario_vehiculo(request: Request):
 def agregar_vehiculo(
     request: Request,
     codigo: str = Form(...),
-    clave: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    if clave != CLAVE_ACCESO:
-        mensaje = "❌ Contraseña incorrecta. No tienes permiso para agregar vehículos."
-        return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
-
+    
     if not re.fullmatch(r"[A-Z]{1,3}-\d{3,5}", codigo):
         mensaje = "❌ Código inválido. Debe tener formato como ABC-1234"
     elif db.query(Vehiculo).filter_by(codigo=codigo).first():

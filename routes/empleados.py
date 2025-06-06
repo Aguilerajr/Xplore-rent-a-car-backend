@@ -20,13 +20,9 @@ def agregar_empleado(
     request: Request,
     codigo: str = Form(...),
     nombre: str = Form(...),
-    clave: str = Form(...),
     db: Session = Depends(get_db_empleados)
 ):
-    if clave != CLAVE_ACCESO:
-        mensaje = "❌ Contraseña incorrecta. No tienes permiso para agregar empleados."
-        return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": mensaje})
-
+    
     if not re.fullmatch(r"\d{4}", codigo):
         mensaje = "❌ El código debe tener 4 dígitos."
     elif db.query(Empleado).filter_by(codigo=codigo).first():
