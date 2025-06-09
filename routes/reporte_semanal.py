@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from database import get_db
-from models import RegistroLavado
+from database import get_db, get_db_empleados
+from models import RegistroLavado, Empleado
 from io import BytesIO
 from datetime import datetime, timedelta
 import pandas as pd
@@ -20,15 +20,16 @@ def formulario_reporte(request: Request):
 def generar_reporte(
     request: Request,
     semana: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    db_empleados: Session = Depends(get_db_empleados)
 ):
     try:
         fecha_inicio = datetime.strptime(semana, "%Y-%m-%d")
     except ValueError:
-        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Formato de fecha inválido"}, status_code=400)
+        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Formato de fecha inválido"})
 
     if fecha_inicio.weekday() != 0:
-        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Debes seleccionar un día lunes"}, status_code=400)
+        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Debes seleccionar un día lunes"})
 
     numero_semana = fecha_inicio.isocalendar().week
     fecha_fin = fecha_inicio + timedelta(days=6)
@@ -38,8 +39,7 @@ def generar_reporte(
         RegistroLavado.inicio <= fecha_fin
     ).all()
 
-    if not registros:
-        return templates.TemplateResponse("reporte.html", {"request": request, "error": "No hay registros para esa semana"}, status_code=404)
+    empleados_todos = [e.nombre for e in db_empleados.query(Empleado).all()]
 
     data = []
     for r in registros:
@@ -60,18 +60,32 @@ def generar_reporte(
         "Minutos Estimados": "sum",
         "Minutos Reales": "sum"
     }).reset_index()
+
     resumen.rename(columns={"Vehículo": "Vehículos Lavados"}, inplace=True)
     resumen["Eficiencia Semanal (%)"] = round(
         (resumen["Minutos Estimados"] / resumen["Minutos Reales"]).replace([float('inf'), float('nan')], 0) * 100, 2
     )
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    # Asegurarse que todos los empleados estén presentes
+    resumen = pd.merge(
+        pd.DataFrame({"Empleado": empleados_todos}),
+        resumen,
+        on="Empleado",
+        how="left"
+    ).fillna({
+        "Vehículos Lavados": 0,
+        "Minutos Estimados": 0,
+        "Minutos Reales": 0,
+        "Eficiencia Semanal (%)": 0
+    })
+
+    # Gráfico estilo empresarial
+    fig, ax = plt.subplots(figsize=(10, 5))
     bars = ax.bar(resumen["Empleado"], resumen["Eficiencia Semanal (%)"])
     ax.set_title("Eficiencia Diaria", fontsize=14, weight="bold")
-    ax.set_ylabel("Porcentaje", fontsize=12)
-    ax.set_ylim(0, 100)
-    ax.set_xticklabels(resumen["Empleado"], rotation=45, ha='right')
-    plt.tight_layout()
+    ax.set_ylabel("Eficiencia (%)")
+    ax.set_ylim(0, max(100, resumen["Eficiencia Semanal (%)"].max() + 10))
+    plt.xticks(rotation=45, ha='right')
 
     for bar in bars:
         height = bar.get_height()
@@ -79,15 +93,39 @@ def generar_reporte(
                     xytext=(0, 3), textcoords="offset points", ha='center', va='bottom')
 
     img_data = BytesIO()
+    plt.tight_layout()
     plt.savefig(img_data, format='png')
     img_data.seek(0)
 
+    # Crear Excel con formato empresarial
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, sheet_name="Lavados Detalle", index=False)
         resumen.to_excel(writer, sheet_name="Resumen Semanal", index=False)
-        worksheet = writer.sheets["Resumen Semanal"]
-        worksheet.insert_image("H2", "grafico.png", {"image_data": img_data})
+
+        wb = writer.book
+        detalle_ws = writer.sheets["Lavados Detalle"]
+        resumen_ws = writer.sheets["Resumen Semanal"]
+
+        header_fmt = wb.add_format({
+            'bold': True, 'align': 'center', 'valign': 'vcenter',
+            'fg_color': '#0066b2', 'color': 'white', 'border': 1
+        })
+        cell_fmt = wb.add_format({'border': 1, 'align': 'center'})
+        pct_fmt = wb.add_format({'num_format': '0.00%', 'border': 1, 'align': 'center'})
+
+        for i, col in enumerate(df.columns):
+            detalle_ws.write(0, i, col, header_fmt)
+            detalle_ws.set_column(i, i, 20)
+
+        for i, col in enumerate(resumen.columns):
+            resumen_ws.write(0, i, col, header_fmt)
+            resumen_ws.set_column(i, i, 22)
+            fmt = pct_fmt if "Eficiencia" in col else cell_fmt
+            for row in range(len(resumen)):
+                resumen_ws.write(row + 1, i, resumen.iloc[row, i], fmt)
+
+        resumen_ws.insert_image("H2", "grafico.png", {"image_data": img_data})
 
     output.seek(0)
     nombre_archivo = f"reporte_semanal_semana_{numero_semana}.xlsx"
