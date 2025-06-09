@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Admin</title>
+</head>
+<body>
+    <h1>Panel de Administración</h1>
+
+    <h2>Vehículos</h2>
+    <ul>
+        {% for v in vehiculos %}
+            <li>{{ v.codigo }} - {{ v.marca }} {{ v.modelo }} ({{ v.tipo }})</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Empleados</h2>
+    <ul>
+        {% for e in empleados %}
+            <li>{{ e.codigo }} - {{ e.nombre }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Últimos Lavados</h2>
+    <ul>
+        {% for r in registros %}
+            <li>{{ r.vehiculo }} - {{ r.nombre_empleado }} - {{ r.inicio }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

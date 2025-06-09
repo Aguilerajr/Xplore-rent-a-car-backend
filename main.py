@@ -13,7 +13,7 @@ from routes.codigos import router as codigos_router
 from routes.asignar import router as asignar_router
 from routes.proteccion import router as proteccion_router
 from routes.rutas_login import router as login_router
-
+from routes.admin_panel import router as admin_panel_router
 
 
 app = FastAPI()
@@ -42,4 +42,4 @@ app.include_router(codigos_router)
 app.include_router(asignar_router)
 app.include_router(proteccion_router)
 app.include_router(login_router)
-
+app.include_router(admin_panel_router)
