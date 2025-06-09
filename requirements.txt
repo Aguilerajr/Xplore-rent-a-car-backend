@@ -9,3 +9,4 @@ python-barcode==0.15.1
 Pillow==10.3.0
 reportlab==4.0.7
 starlette>=0.36.3
+itsdangerous>=2.1.2
