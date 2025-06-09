@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from starlette.middleware.sessions import SessionMiddleware  # ✅ Middleware de sesiones
 from pathlib import Path
 
 # Importar routers personalizados
@@ -15,10 +16,10 @@ from routes.proteccion import router as proteccion_router
 from routes.rutas_login import router as login_router
 from routes.admin_panel import router as admin_panel_router
 
-
 app = FastAPI()
 
-
+# ✅ Activar middleware de sesión
+app.add_middleware(SessionMiddleware, secret_key="xplore_clave_segura_super")
 
 # Configuración de rutas y templates
 BASE_DIR = Path(__file__).resolve().parent
