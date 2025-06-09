@@ -20,9 +20,11 @@ def generar_reporte_excel(
     except ValueError:
         return JSONResponse(content={"detalle": "Formato de fecha inválido. Usa YYYY-MM-DD"}, status_code=400)
 
+    if fecha_inicio.weekday() != 0:  # 0 = lunes
+        return JSONResponse(content={"detalle": "Debes seleccionar un día lunes para generar el reporte semanal."}, status_code=400)
+
     fecha_fin = fecha_inicio + timedelta(days=6)
 
-    # Consultar base de datos
     registros = db.query(RegistroLavado).filter(
         RegistroLavado.inicio >= fecha_inicio,
         RegistroLavado.inicio <= fecha_fin
@@ -72,10 +74,10 @@ def generar_reporte_excel(
     # Crear archivo Excel
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, sheet_name="Detalle", index=False)
-        resumen.to_excel(writer, sheet_name="Resumen", index=False)
-        worksheet = writer.sheets["Resumen"]
-        worksheet.insert_image("G2", "grafico.png", {"image_data": img_data})
+        df.to_excel(writer, sheet_name="Lavados Detalle", index=False)
+        resumen.to_excel(writer, sheet_name="Resumen Semanal", index=False)
+        worksheet = writer.sheets["Resumen Semanal"]
+        worksheet.insert_image("H2", "grafico.png", {"image_data": img_data})
 
     output.seek(0)
     return StreamingResponse(
