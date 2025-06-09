@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Query, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import RegistroLavado
@@ -15,7 +15,11 @@ def generar_reporte_excel(
     semana: str = Query(..., description="Fecha del lunes de la semana (YYYY-MM-DD)"),
     db: Session = Depends(get_db)
 ):
-    fecha_inicio = datetime.strptime(semana, "%Y-%m-%d")
+    try:
+        fecha_inicio = datetime.strptime(semana, "%Y-%m-%d")
+    except ValueError:
+        return JSONResponse(content={"detalle": "Formato de fecha inválido. Usa YYYY-MM-DD"}, status_code=400)
+
     fecha_fin = fecha_inicio + timedelta(days=6)
 
     # Consultar base de datos
@@ -25,7 +29,7 @@ def generar_reporte_excel(
     ).all()
 
     if not registros:
-        return {"detalle": "No hay registros para esa semana"}
+        return JSONResponse(content={"detalle": "No hay registros para esa semana"}, status_code=404)
 
     # Crear DataFrame
     data = []
@@ -70,11 +74,12 @@ def generar_reporte_excel(
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, sheet_name="Detalle", index=False)
         resumen.to_excel(writer, sheet_name="Resumen", index=False)
-
-        workbook = writer.book
         worksheet = writer.sheets["Resumen"]
         worksheet.insert_image("G2", "grafico.png", {"image_data": img_data})
 
     output.seek(0)
-    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                             headers={"Content-Disposition": "attachment; filename=reporte_semanal.xlsx"})
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=reporte_semanal.xlsx"}
+    )
