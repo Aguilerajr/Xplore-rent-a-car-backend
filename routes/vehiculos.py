@@ -21,14 +21,26 @@ def agregar_vehiculo(
     codigo: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    
-    if not re.fullmatch(r"[A-Z]{1,3}-\d{3,5}", codigo):
+    # Validación de formato
+    if not re.fullmatch(r"[A-Z]{1,3}-\d{4}", codigo):
         mensaje = "❌ Código inválido. Debe tener formato como ABC-1234"
+
+    # Validación por código exacto
     elif db.query(Vehiculo).filter_by(codigo=codigo).first():
         mensaje = "❌ El vehículo ya existe."
+
     else:
-        db.add(Vehiculo(codigo=codigo))
-        db.commit()
-        mensaje = f"✅ Vehículo {codigo} agregado correctamente."
+        # Extraer los 4 dígitos
+        digitos = codigo.split("-")[1]
+
+        # Validar duplicado de número aunque cambie la letra
+        vehiculos_con_mismo_numero = db.query(Vehiculo).filter(Vehiculo.codigo.like(f"%-{digitos}")).first()
+
+        if vehiculos_con_mismo_numero:
+            mensaje = f"❌ Ya existe un vehículo con el número {digitos} (sin importar la letra)."
+        else:
+            db.add(Vehiculo(codigo=codigo))
+            db.commit()
+            mensaje = f"✅ Vehículo {codigo} agregado correctamente."
 
     return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
