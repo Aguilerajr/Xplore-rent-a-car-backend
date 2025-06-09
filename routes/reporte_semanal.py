@@ -25,11 +25,12 @@ def generar_reporte(
     try:
         fecha_inicio = datetime.strptime(semana, "%Y-%m-%d")
     except ValueError:
-        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Formato de fecha inválido"})
+        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Formato de fecha inválido"}, status_code=400)
 
     if fecha_inicio.weekday() != 0:
-        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Debes seleccionar un día lunes"})
+        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Debes seleccionar un día lunes"}, status_code=400)
 
+    numero_semana = fecha_inicio.isocalendar().week
     fecha_fin = fecha_inicio + timedelta(days=6)
 
     registros = db.query(RegistroLavado).filter(
@@ -38,7 +39,7 @@ def generar_reporte(
     ).all()
 
     if not registros:
-        return templates.TemplateResponse("reporte.html", {"request": request, "error": "No hay registros para esa semana"})
+        return templates.TemplateResponse("reporte.html", {"request": request, "error": "No hay registros para esa semana"}, status_code=404)
 
     data = []
     for r in registros:
@@ -64,12 +65,18 @@ def generar_reporte(
         (resumen["Minutos Estimados"] / resumen["Minutos Reales"]).replace([float('inf'), float('nan')], 0) * 100, 2
     )
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.bar(resumen["Empleado"], resumen["Eficiencia Semanal (%)"])
-    ax.set_title("Eficiencia Semanal por Empleado")
-    ax.set_ylabel("Eficiencia (%)")
-    ax.set_ylim(0, 120)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    bars = ax.bar(resumen["Empleado"], resumen["Eficiencia Semanal (%)"])
+    ax.set_title("Eficiencia Diaria", fontsize=14, weight="bold")
+    ax.set_ylabel("Porcentaje", fontsize=12)
+    ax.set_ylim(0, 100)
+    ax.set_xticklabels(resumen["Empleado"], rotation=45, ha='right')
     plt.tight_layout()
+
+    for bar in bars:
+        height = bar.get_height()
+        ax.annotate(f'{height:.0f}%', xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3), textcoords="offset points", ha='center', va='bottom')
 
     img_data = BytesIO()
     plt.savefig(img_data, format='png')
@@ -83,8 +90,10 @@ def generar_reporte(
         worksheet.insert_image("H2", "grafico.png", {"image_data": img_data})
 
     output.seek(0)
+    nombre_archivo = f"reporte_semanal_semana_{numero_semana}.xlsx"
+
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=reporte_semanal.xlsx"}
+        headers={"Content-Disposition": f"attachment; filename={nombre_archivo}"}
     )
