@@ -38,7 +38,7 @@ def generar_reporte_excel(
         data.append({
             "Fecha": r.inicio.strftime("%Y-%m-%d"),
             "Empleado": r.nombre_empleado,
-            "Vehículo": r.codigo_vehiculo,
+            "Vehículo": r.vehiculo,
             "Minutos Estimados": r.tiempo_estimado,
             "Minutos Reales": r.tiempo_real,
             "Eficiencia (%)": eficiencia
