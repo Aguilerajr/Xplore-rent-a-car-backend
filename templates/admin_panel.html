@@ -10,14 +10,22 @@
     <h2>Vehículos</h2>
     <ul>
         {% for v in vehiculos %}
-            <li>{{ v.codigo }} - {{ v.marca }} {{ v.modelo }} ({{ v.tipo }})</li>
+            <li>
+                {{ v.codigo }} - {{ v.marca }} {{ v.modelo }} ({{ v.tipo }})
+                <a href="/admin_panel/editar_vehiculo/{{ v.codigo }}">✏️ Editar</a>
+                <a href="/admin_panel/eliminar_vehiculo/{{ v.codigo }}" onclick="return confirm('¿Estás seguro de eliminar este vehículo?')">🗑️ Eliminar</a>
+            </li>
         {% endfor %}
     </ul>
 
     <h2>Empleados</h2>
     <ul>
         {% for e in empleados %}
-            <li>{{ e.codigo }} - {{ e.nombre }}</li>
+            <li>
+                {{ e.codigo }} - {{ e.nombre }}
+                <a href="/admin_panel/editar_empleado/{{ e.codigo }}">✏️ Editar</a>
+                <a href="/admin_panel/eliminar_empleado/{{ e.codigo }}" onclick="return confirm('¿Eliminar este empleado?')">🗑️ Eliminar</a>
+            </li>
         {% endfor %}
     </ul>
 
