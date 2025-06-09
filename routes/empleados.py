@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Form, Request, Depends, HTTPException
+from fastapi import APIRouter, Form, Request, Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -9,28 +9,20 @@ import re
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-CLAVE_ACCESO = "admin123"
-
-# ✅ Verificador de sesión para rutas protegidas
-def verificar_sesion(request: Request):
-    if not request.session.get("logueado"):
-        raise HTTPException(status_code=401, detail="No autorizado")
+CLAVE_ACCESO = "admin123"  # Puedes cambiarla
 
 @router.get("/agregar_empleado", response_class=HTMLResponse)
-def mostrar_formulario_empleado(
-    request: Request,
-    autorizado: bool = Depends(verificar_sesion)
-):
-    return templates.TemplateResponse("verificar_agregar_empleado.html", {"request": request, "mensaje": ""})
+def mostrar_formulario_empleado(request: Request):
+    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
 
 @router.post("/agregar_empleado", response_class=HTMLResponse)
 def agregar_empleado(
     request: Request,
     codigo: str = Form(...),
     nombre: str = Form(...),
-    db: Session = Depends(get_db_empleados),
-    autorizado: bool = Depends(verificar_sesion)
+    db: Session = Depends(get_db_empleados)
 ):
+    
     if not re.fullmatch(r"\d{4}", codigo):
         mensaje = "❌ El código debe tener 4 dígitos."
     elif db.query(Empleado).filter_by(codigo=codigo).first():
@@ -40,4 +32,4 @@ def agregar_empleado(
         db.commit()
         mensaje = f"✅ Empleado {nombre} agregado."
 
-    return templates.TemplateResponse("verificar_agregar_empleado.html", {"request": request, "mensaje": mensaje})
+    return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": mensaje})

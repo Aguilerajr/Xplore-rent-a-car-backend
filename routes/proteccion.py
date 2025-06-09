@@ -7,8 +7,6 @@ templates = Jinja2Templates(directory="templates")
 
 CLAVE_ACCESO = "admin123"
 
-# 🔒 PROTECCIÓN PARA AGREGAR VEHÍCULO
-
 @router.get("/verificar_agregar_vehiculo", response_class=HTMLResponse)
 def mostrar_formulario_vehiculo(request: Request):
     return templates.TemplateResponse("verificar_clave.html", {
@@ -19,7 +17,6 @@ def mostrar_formulario_vehiculo(request: Request):
 @router.post("/verificar_agregar_vehiculo", response_class=HTMLResponse)
 def verificar_vehiculo(request: Request, clave: str = Form(...)):
     if clave == CLAVE_ACCESO:
-        request.session["autorizado_vehiculo"] = True
         return RedirectResponse(url="/agregar_vehiculo", status_code=302)
     return templates.TemplateResponse("verificar_clave.html", {
         "request": request,
@@ -40,7 +37,6 @@ def mostrar_formulario_empleado(request: Request):
 @router.post("/verificar_agregar_empleado", response_class=HTMLResponse)
 def verificar_empleado(request: Request, clave: str = Form(...)):
     if clave == CLAVE_ACCESO:
-        request.session["autorizado_empleado"] = True
         return RedirectResponse(url="/agregar_empleado", status_code=302)
     return templates.TemplateResponse("verificar_clave.html", {
         "request": request,
