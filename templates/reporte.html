@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Generar Reporte Semanal</title>
+    <link rel="icon" href="/static/icon.png" type="image/png">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            text-align: center;
+            padding: 50px;
+        }
+        form {
+            background: white;
+            padding: 40px;
+            display: inline-block;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        input[type="date"], button {
+            padding: 10px;
+            font-size: 16px;
+            margin: 15px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #0066b2;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #004c87;
+        }
+    </style>
+</head>
+<body>
+    <h1>Generar Reporte Semanal</h1>
+    <form method="get" action="/reporte_semanal">
+        <label for="semana">Selecciona el lunes de la semana:</label><br>
+        <input type="date" id="semana" name="semana" required><br>
+        <button type="submit">Generar Reporte</button>
+    </form>
+</body>
+</html>
