@@ -1,5 +1,4 @@
-
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Request, Query, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from database import get_db
@@ -12,7 +11,10 @@ import matplotlib.pyplot as plt
 router = APIRouter()
 
 @router.get("/reporte_semanal")
-def generar_reporte_excel(semana: str = Query(..., description="Fecha del lunes de la semana (YYYY-MM-DD)"), db: Session = get_db()):
+def generar_reporte_excel(
+    semana: str = Query(..., description="Fecha del lunes de la semana (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+):
     fecha_inicio = datetime.strptime(semana, "%Y-%m-%d")
     fecha_fin = fecha_inicio + timedelta(days=6)
 
@@ -71,7 +73,6 @@ def generar_reporte_excel(semana: str = Query(..., description="Fecha del lunes 
 
         workbook = writer.book
         worksheet = writer.sheets["Resumen"]
-
         worksheet.insert_image("G2", "grafico.png", {"image_data": img_data})
 
     output.seek(0)
