@@ -15,10 +15,7 @@ from routes.proteccion import router as proteccion_router
 from routes.rutas_login import router as login_router
 from routes.admin_panel import router as admin_panel_router
 
-
 app = FastAPI()
-
-
 
 # Configuración de rutas y templates
 BASE_DIR = Path(__file__).resolve().parent
