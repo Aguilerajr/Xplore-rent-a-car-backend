@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from starlette.middleware.sessions import SessionMiddleware  # ✅ Middleware de sesiones
+from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
 
 # 🔗 Rutas personalizadas
@@ -18,8 +18,13 @@ from routes.admin_panel import router as admin_panel_router
 
 app = FastAPI()
 
-# ✅ Habilitar sesiones en la app
-app.add_middleware(SessionMiddleware, secret_key="xplore_clave_segura_super")
+# ✅ Habilitar sesiones con configuración especial para Railway (HTTPS)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key="xplore_clave_segura_super",
+    same_site="none",     # 🔥 Necesario para que las cookies funcionen en Railway
+    https_only=True       # 🔥 Railway usa HTTPS, esto es obligatorio
+)
 
 # 📁 Configurar templates y archivos estáticos
 BASE_DIR = Path(__file__).resolve().parent
