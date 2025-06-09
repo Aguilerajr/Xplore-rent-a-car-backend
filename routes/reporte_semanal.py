@@ -24,8 +24,8 @@ def generar_reporte_excel(
 
     # Consultar base de datos
     registros = db.query(RegistroLavado).filter(
-        RegistroLavado.fecha >= fecha_inicio,
-        RegistroLavado.fecha <= fecha_fin
+        RegistroLavado.inicio >= fecha_inicio,
+        RegistroLavado.inicio <= fecha_fin
     ).all()
 
     if not registros:
@@ -34,13 +34,13 @@ def generar_reporte_excel(
     # Crear DataFrame
     data = []
     for r in registros:
-        eficiencia = round((r.minutos_estimados / r.minutos_reales) * 100, 2) if r.minutos_reales else 0
+        eficiencia = round((r.tiempo_estimado / r.tiempo_real) * 100, 2) if r.tiempo_real else 0
         data.append({
-            "Fecha": r.fecha.strftime("%Y-%m-%d"),
+            "Fecha": r.inicio.strftime("%Y-%m-%d"),
             "Empleado": r.nombre_empleado,
             "Vehículo": r.codigo_vehiculo,
-            "Minutos Estimados": r.minutos_estimados,
-            "Minutos Reales": r.minutos_reales,
+            "Minutos Estimados": r.tiempo_estimado,
+            "Minutos Reales": r.tiempo_real,
             "Eficiencia (%)": eficiencia
         })
 
@@ -54,7 +54,7 @@ def generar_reporte_excel(
     }).reset_index()
     resumen.rename(columns={"Vehículo": "Vehículos Lavados"}, inplace=True)
     resumen["Eficiencia Semanal (%)"] = round(
-        (resumen["Minutos Estimados"] / resumen["Minutos Reales"]) * 100, 2
+        (resumen["Minutos Estimados"] / resumen["Minutos Reales"]).replace([float('inf'), float('nan')], 0) * 100, 2
     )
 
     # Crear gráfico
