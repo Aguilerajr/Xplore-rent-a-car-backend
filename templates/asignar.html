@@ -3,103 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <title>Asignar Vehículo a Empleado</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="icon" href="/static/icon.png" type="image/png">
     <style>
         body {
-            margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f4f4f4;
         }
 
         .navbar {
             background-color: #0066b2;
-            padding: 20px 30px;
-            display: flex;
-            align-items: center;
+            padding: 15px 30px;
         }
 
-        .navbar a {
-            color: #fff;
+        .navbar-brand {
+            color: white;
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
             text-decoration: none;
-            font-size: 2em;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
         }
 
-        .navbar img {
-            height: 60px;
+        .navbar-brand img {
+            height: 50px;
             margin-right: 15px;
         }
 
-        .container {
+        .form-container {
             max-width: 500px;
             margin: 40px auto;
-            background: #fff;
+            background: white;
             border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             padding: 30px;
-        }
-
-        h2 {
-            text-align: center;
-            color: #003f6b;
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-top: 15px;
-            font-weight: bold;
-            color: #444;
-        }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 1em;
-        }
-
-        input[type="submit"] {
-            width: 100%;
-            padding: 12px;
-            margin-top: 25px;
-            background-color: #0066b2;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-size: 1em;
-            cursor: pointer;
-        }
-
-        input[type="submit"]:hover {
-            background-color: #004d8a;
-        }
-
-        .mensaje {
-            margin-top: 20px;
-            text-align: center;
-            font-weight: bold;
-        }
-
-        .error {
-            color: red;
-        }
-
-        .success {
-            color: green;
         }
 
         .regresar {
             display: block;
-            margin-top: 20px;
             text-align: center;
-            text-decoration: none;
-            color: #0066b2;
+            margin-top: 20px;
             font-weight: bold;
+            color: #0066b2;
+            text-decoration: none;
         }
 
         .regresar:hover {
@@ -109,58 +53,67 @@
 </head>
 <body>
 
-    <div class="navbar">
-        <a href="/"><img src="/static/logo_xplore.png" alt="Xplore Logo"></a>
-    </div>
+<nav class="navbar">
+    <a href="/" class="navbar-brand">
+        <img src="/static/logo_xplore.png" alt="Xplore Logo">
+        Xplore
+    </a>
+</nav>
 
-    <div class="container">
-        <h2>Asignar Vehículo a Empleado</h2>
+<div class="form-container">
+    <h2 class="text-center text-primary mb-4">Asignar Vehículo a Empleado</h2>
 
-        <form method="post">
-            <label for="vehiculo">Vehículo en cola:</label>
-            <input type="text" name="vehiculo" id="vehiculo" list="vehiculos" required autocomplete="off">
+    {% if mensaje %}
+        <div class="alert {% if '❌' in mensaje %}alert-danger{% else %}alert-success{% endif %} text-center">
+            {{ mensaje }}
+        </div>
+    {% endif %}
+
+    <form method="post">
+        <div class="mb-3">
+            <label for="vehiculo" class="form-label">Vehículo en cola:</label>
+            <input type="text" name="vehiculo" id="vehiculo" list="vehiculos" class="form-control" required autocomplete="off">
             <datalist id="vehiculos">
                 {% for codigo in vehiculos %}
                     <option value="{{ codigo }}">
                 {% endfor %}
             </datalist>
+        </div>
 
-            <label for="empleado">Empleado disponible:</label>
-            <input type="text" name="empleado" id="empleado" list="empleados" required autocomplete="off">
+        <div class="mb-3">
+            <label for="empleado" class="form-label">Empleado disponible:</label>
+            <input type="text" name="empleado" id="empleado" list="empleados" class="form-control" required autocomplete="off">
             <datalist id="empleados"></datalist>
+        </div>
 
-            <input type="submit" value="Asignar">
-        </form>
+        <button type="submit" class="btn btn-primary w-100">Asignar</button>
+    </form>
 
-        {% if mensaje %}
-            <div class="mensaje {% if '❌' in mensaje %}error{% else %}success{% endif %}">{{ mensaje }}</div>
-        {% endif %}
+    <a href="/" class="regresar">← Regresar al inicio</a>
+</div>
 
-        <a class="regresar" href="/">← Regresar al inicio</a>
-    </div>
+<script>
+    const inputEmpleado = document.getElementById('empleado');
+    const datalistEmpleado = document.getElementById('empleados');
 
-    <script>
-        const inputEmpleado = document.getElementById('empleado');
-        const datalistEmpleado = document.getElementById('empleados');
-
-        inputEmpleado.addEventListener('input', () => {
-            const q = inputEmpleado.value;
-            if (q.length > 0) {
-                fetch(`/buscar_empleados?q=${q}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        datalistEmpleado.innerHTML = '';
-                        data.resultados.forEach(codigo => {
-                            const opt = document.createElement('option');
-                            opt.value = codigo;
-                            datalistEmpleado.appendChild(opt);
-                        });
+    inputEmpleado.addEventListener('input', () => {
+        const q = inputEmpleado.value;
+        if (q.length > 0) {
+            fetch(`/buscar_empleados?q=${q}`)
+                .then(res => res.json())
+                .then(data => {
+                    datalistEmpleado.innerHTML = '';
+                    data.resultados.forEach(codigo => {
+                        const opt = document.createElement('option');
+                        opt.value = codigo;
+                        datalistEmpleado.appendChild(opt);
                     });
-            } else {
-                datalistEmpleado.innerHTML = '';
-            }
-        });
-    </script>
+                });
+        } else {
+            datalistEmpleado.innerHTML = '';
+        }
+    });
+</script>
 
 </body>
 </html>

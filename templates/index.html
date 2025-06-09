@@ -4,38 +4,45 @@
     <meta charset="UTF-8">
     <title>XPLORE - Lobby</title>
     <link rel="icon" href="/static/icon.png" type="image/png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
-            margin: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f4f4f4;
         }
 
         .navbar {
             background-color: #0066b2;
+            padding: 15px 30px;
+        }
+
+        .navbar-brand {
             display: flex;
             align-items: center;
-            padding: 10px 20px;
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+            text-decoration: none;
         }
 
-        .navbar img {
+        .navbar-brand img {
             height: 50px;
-            cursor: pointer;
+            margin-right: 15px;
         }
 
-        .container {
+        .lobby-container {
             max-width: 600px;
             margin: 60px auto;
             background-color: #fff;
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 40px 30px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             text-align: center;
         }
 
-        h2 {
-            margin-bottom: 30px;
+        .lobby-container h2 {
             color: #003f6b;
+            margin-bottom: 30px;
         }
 
         .menu-link {
@@ -58,20 +65,22 @@
 </head>
 <body>
 
-    <div class="navbar">
-        <a href="/">
-            <img src="/static/logo_xplore.png" alt="XPLORE">
+<nav class="navbar">
+    <div class="container">
+        <a class="navbar-brand" href="/">
+            <img src="/static/logo_xplore.png" alt="XPLORE Logo"> XPLORE Backend
         </a>
     </div>
+</nav>
 
-    <div class="container">
-        <h2>Selecciona una acción</h2>
-        <a class="menu-link" href="/calidad">🔍 Clasificar Vehículo</a>
-        <a class="menu-link" href="/asignar">📋 Asignar Vehículo a Empleado</a>
-        <a class="menu-link" href="/crear_codigos">🔗 Generar Códigos de Barras</a>
-        <a class="menu-link" href="/verificar_agregar_vehiculo">➕ Agregar Vehículo Nuevo</a>
-        <a class="menu-link" href="/verificar_agregar_empleado">👤 Agregar Empleado</a>
-    </div>
+<div class="lobby-container">
+    <h2>Selecciona una acción</h2>
+    <a class="menu-link" href="/calidad">🔍 Clasificar Vehículo</a>
+    <a class="menu-link" href="/asignar">📋 Asignar Vehículo a Empleado</a>
+    <a class="menu-link" href="/crear_codigos">🔗 Generar Códigos de Barras</a>
+    <a class="menu-link" href="/verificar_agregar_vehiculo">➕ Agregar Vehículo Nuevo</a>
+    <a class="menu-link" href="/verificar_agregar_empleado">👤 Agregar Empleado</a>
+</div>
 
 </body>
 </html>
