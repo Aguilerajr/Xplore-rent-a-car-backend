@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -35,14 +34,22 @@
         button:hover {
             background-color: #004c87;
         }
+        .error {
+            color: red;
+            margin-top: 10px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <h1>Generar Reporte Semanal</h1>
-    <form method="get" action="/reporte_semanal">
+    <form method="post" action="/reporte_semanal">
         <label for="semana">Selecciona el lunes de la semana:</label><br>
         <input type="date" id="semana" name="semana" required><br>
         <button type="submit">Generar Reporte</button>
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
     </form>
 </body>
 </html>

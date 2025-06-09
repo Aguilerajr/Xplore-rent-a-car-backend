@@ -1,27 +1,34 @@
-from fastapi import APIRouter, Request, Query, Depends
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import APIRouter, Request, Form, Depends
+from fastapi.responses import StreamingResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db
 from models import RegistroLavado
 from io import BytesIO
-import pandas as pd
 from datetime import datetime, timedelta
+import pandas as pd
 import matplotlib.pyplot as plt
 
 router = APIRouter()
+templates = Jinja2Templates(directory="templates")
 
 @router.get("/reporte_semanal")
-def generar_reporte_excel(
-    semana: str = Query(..., description="Fecha del lunes de la semana (YYYY-MM-DD)"),
+def formulario_reporte(request: Request):
+    return templates.TemplateResponse("reporte.html", {"request": request, "error": None})
+
+@router.post("/reporte_semanal")
+def generar_reporte(
+    request: Request,
+    semana: str = Form(...),
     db: Session = Depends(get_db)
 ):
     try:
         fecha_inicio = datetime.strptime(semana, "%Y-%m-%d")
     except ValueError:
-        return JSONResponse(content={"detalle": "Formato de fecha inválido. Usa YYYY-MM-DD"}, status_code=400)
+        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Formato de fecha inválido"})
 
-    if fecha_inicio.weekday() != 0:  # 0 = lunes
-        return JSONResponse(content={"detalle": "Debes seleccionar un día lunes para generar el reporte semanal."}, status_code=400)
+    if fecha_inicio.weekday() != 0:
+        return templates.TemplateResponse("reporte.html", {"request": request, "error": "Debes seleccionar un día lunes"})
 
     fecha_fin = fecha_inicio + timedelta(days=6)
 
@@ -31,9 +38,8 @@ def generar_reporte_excel(
     ).all()
 
     if not registros:
-        return JSONResponse(content={"detalle": "No hay registros para esa semana"}, status_code=404)
+        return templates.TemplateResponse("reporte.html", {"request": request, "error": "No hay registros para esa semana"})
 
-    # Crear DataFrame
     data = []
     for r in registros:
         eficiencia = round((r.tiempo_estimado / r.tiempo_real) * 100, 2) if r.tiempo_real else 0
@@ -48,7 +54,6 @@ def generar_reporte_excel(
 
     df = pd.DataFrame(data)
 
-    # Resumen por empleado
     resumen = df.groupby("Empleado").agg({
         "Vehículo": "count",
         "Minutos Estimados": "sum",
@@ -59,7 +64,6 @@ def generar_reporte_excel(
         (resumen["Minutos Estimados"] / resumen["Minutos Reales"]).replace([float('inf'), float('nan')], 0) * 100, 2
     )
 
-    # Crear gráfico
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.bar(resumen["Empleado"], resumen["Eficiencia Semanal (%)"])
     ax.set_title("Eficiencia Semanal por Empleado")
@@ -71,7 +75,6 @@ def generar_reporte_excel(
     plt.savefig(img_data, format='png')
     img_data.seek(0)
 
-    # Crear archivo Excel
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, sheet_name="Lavados Detalle", index=False)
