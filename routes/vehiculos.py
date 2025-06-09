@@ -9,26 +9,27 @@ import re
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-CLAVE_ACCESO = "admin123"
-
-# ✅ Verificador de sesión
-def verificar_sesion(request: Request):
-    if not request.session.get("logueado"):
+# ✅ Verificador de sesión específica para agregar vehículo
+def verificar_sesion_vehiculo(request: Request):
+    if not request.session.get("autorizado_vehiculo"):
         raise HTTPException(status_code=401, detail="No autorizado")
 
 @router.get("/agregar_vehiculo", response_class=HTMLResponse)
 def mostrar_formulario_vehiculo(
     request: Request,
-    autorizado: bool = Depends(verificar_sesion)
+    autorizado: bool = Depends(verificar_sesion_vehiculo)
 ):
-    return templates.TemplateResponse("verificar_agregar_vehiculo.html", {"request": request, "mensaje": ""})
+    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": ""})
 
 @router.post("/agregar_vehiculo", response_class=HTMLResponse)
 def agregar_vehiculo(
     request: Request,
     codigo: str = Form(...),
+    marca: str = Form(...),
+    modelo: str = Form(...),
+    tipo: str = Form(...),
     db: Session = Depends(get_db),
-    autorizado: bool = Depends(verificar_sesion)
+    autorizado: bool = Depends(verificar_sesion_vehiculo)
 ):
     if not re.fullmatch(r"[A-Z]{1,3}-\d{4}", codigo):
         mensaje = "❌ Código inválido. Debe tener formato como ABC-1234"
@@ -40,8 +41,12 @@ def agregar_vehiculo(
         if vehiculos_con_mismo_numero:
             mensaje = f"❌ Ya existe un vehículo con el número {digitos} (sin importar la letra)."
         else:
-            db.add(Vehiculo(codigo=codigo))
+            nuevo_vehiculo = Vehiculo(codigo=codigo, marca=marca, modelo=modelo, tipo=tipo)
+            db.add(nuevo_vehiculo)
             db.commit()
             mensaje = f"✅ Vehículo {codigo} agregado correctamente."
 
-    return templates.TemplateResponse("verificar_agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
+    return templates.TemplateResponse("agregar_vehiculo.html", {
+        "request": request,
+        "mensaje": mensaje
+    })

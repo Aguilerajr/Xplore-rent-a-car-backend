@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware  # ✅ Middleware de sesiones
 from pathlib import Path
 
-# Importar routers personalizados
+# 🔗 Rutas personalizadas
 from routes.clasificacion import router as clasificacion_router
 from routes.lavado import router as lavado_router
 from routes.empleados import router as empleados_router
@@ -18,10 +18,10 @@ from routes.admin_panel import router as admin_panel_router
 
 app = FastAPI()
 
-# ✅ Activar middleware de sesión
+# ✅ Habilitar sesiones en la app
 app.add_middleware(SessionMiddleware, secret_key="xplore_clave_segura_super")
 
-# Configuración de rutas y templates
+# 📁 Configurar templates y archivos estáticos
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
@@ -29,12 +29,12 @@ STATIC_DIR = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
-# Página principal
+# 🏠 Página principal
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# Montar routers
+# 🔌 Montar todos los routers
 app.include_router(clasificacion_router)
 app.include_router(lavado_router)
 app.include_router(empleados_router)

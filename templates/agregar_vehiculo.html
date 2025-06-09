@@ -29,7 +29,7 @@
         }
 
         .form-container {
-            max-width: 500px;
+            max-width: 550px;
             margin: 40px auto;
             background: white;
             border-radius: 10px;
@@ -87,6 +87,28 @@
         </div>
 
         <input type="hidden" name="codigo" id="codigo">
+
+        <div class="mb-3">
+            <label for="marca" class="form-label">Marca:</label>
+            <input type="text" name="marca" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="modelo" class="form-label">Modelo:</label>
+            <input type="text" name="modelo" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="tipo" class="form-label">Tipo:</label>
+            <select name="tipo" class="form-select" required>
+                <option value="">Seleccione tipo</option>
+                <option value="Sedán">Sedán</option>
+                <option value="SUV">SUV</option>
+                <option value="Pick-Up">Pick-Up</option>
+                <option value="Busito">Busito</option>
+                <option value="Otro">Otro</option>
+            </select>
+        </div>
 
         <button type="submit" class="btn btn-primary w-100">Agregar</button>
     </form>
