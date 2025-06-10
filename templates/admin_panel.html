@@ -1,45 +1,88 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>Panel Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="icon" href="/static/icon.png" type="image/png">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function filtrarVehiculos() {
+            const input = document.getElementById("buscador").value.toUpperCase();
+            const items = document.querySelectorAll(".vehiculo-item");
+            items.forEach(item => {
+                item.style.display = item.dataset.codigo.includes(input) ? "flex" : "none";
+            });
+        }
+    </script>
 </head>
 <body class="bg-light">
+<nav class="navbar navbar-dark bg-primary mb-4">
+    <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">Xplore - Panel de Administración</span>
+    </div>
+</nav>
 
-    <nav class="navbar navbar-dark bg-primary mb-4">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">Xplore - Panel de Administración</span>
-        </div>
-    </nav>
+<div class="container">
+    <ul class="nav nav-tabs mb-4" id="adminTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="vehiculos-tab" data-bs-toggle="tab" data-bs-target="#vehiculos" type="button" role="tab">Vehículos</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="empleados-tab" data-bs-toggle="tab" data-bs-target="#empleados" type="button" role="tab">Empleados</button>
+        </li>
+    </ul>
 
-    <div class="container">
-        <div class="mb-5">
-            <h2 class="text-primary">Vehículos</h2>
-            <ul class="list-group">
+    <div class="tab-content" id="adminTabContent">
+        <!-- Vehículos -->
+        <div class="tab-pane fade show active" id="vehiculos" role="tabpanel">
+            <input type="text" class="form-control mb-3" id="buscador" onkeyup="filtrarVehiculos()" placeholder="Buscar por código...">
+            <div class="accordion" id="vehiculosAccordion">
+                {% set letras = {} %}
                 {% for v in vehiculos %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>
-                        <strong>{{ v.codigo }}</strong> - {{ v.marca }} {{ v.modelo }} ({{ v.tipo }})
-                    </span>
-                    <span>
-                        <a href="/admin_panel/editar_vehiculo/{{ v.codigo }}" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
-                        <a href="/admin_panel/eliminar_vehiculo/{{ v.codigo }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Estás seguro de eliminar este vehículo?')">🗑️ Eliminar</a>
-                    </span>
-                </li>
+                    {% set letra = v.codigo[0] %}
+                    {% if letra not in letras %}
+                        {% set _ = letras.update({letra: []}) %}
+                    {% endif %}
+                    {% set _ = letras[letra].append(v) %}
                 {% endfor %}
-            </ul>
+
+                {% for letra, vehiculos_letra in letras.items() %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading-{{ letra }}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ letra }}">
+                            Vehículos con letra "{{ letra }}"
+                        </button>
+                    </h2>
+                    <div id="collapse-{{ letra }}" class="accordion-collapse collapse" data-bs-parent="#vehiculosAccordion">
+                        <div class="accordion-body">
+                            <ul class="list-group">
+                                {% for v in vehiculos_letra %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center vehiculo-item" data-codigo="{{ v.codigo | upper }}">
+                                    <span>
+                                        <strong>{{ v.codigo }}</strong> - {{ v.marca }} {{ v.modelo }} ({{ v.tipo }})
+                                    </span>
+                                    <span>
+                                        <a href="/admin_panel/editar_vehiculo/{{ v.codigo }}" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
+                                        <a href="/admin_panel/eliminar_vehiculo/{{ v.codigo }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Estás seguro de eliminar este vehículo?')">🗑️ Eliminar</a>
+                                    </span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
 
-        <div class="mb-5">
+        <!-- Empleados -->
+        <div class="tab-pane fade" id="empleados" role="tabpanel">
             <h2 class="text-success">Empleados</h2>
             <ul class="list-group">
                 {% for e in empleados %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>
-                        <strong>{{ e.codigo }}</strong> - {{ e.nombre }}
-                    </span>
+                    <span><strong>{{ e.nombre }}</strong> - Código: {{ e.codigo }}</span>
                     <span>
                         <a href="/admin_panel/editar_empleado/{{ e.codigo }}" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
                         <a href="/admin_panel/eliminar_empleado/{{ e.codigo }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar este empleado?')">🗑️ Eliminar</a>
@@ -48,18 +91,7 @@
                 {% endfor %}
             </ul>
         </div>
-
-        <div>
-            <h2 class="text-secondary">Últimos Lavados</h2>
-            <ul class="list-group">
-                {% for r in registros %}
-                <li class="list-group-item">
-                    <strong>{{ r.vehiculo }}</strong> - {{ r.nombre_empleado }} - {{ r.inicio }}
-                </li>
-                {% endfor %}
-            </ul>
-        </div>
     </div>
-
+</div>
 </body>
 </html>
