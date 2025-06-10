@@ -8,18 +8,17 @@
     <script>
         function filtrarVehiculos() {
             const input = document.getElementById("buscador").value.toUpperCase();
-            const items = document.querySelectorAll(".vehiculo-item");
             const acordeones = document.querySelectorAll(".accordion-item");
 
             acordeones.forEach(acordeon => {
-                let contieneCoincidencia = false;
+                const items = acordeon.querySelectorAll(".vehiculo-item");
+                let hayCoincidencia = false;
 
-                const itemsInternos = acordeon.querySelectorAll(".vehiculo-item");
-                itemsInternos.forEach(item => {
+                items.forEach(item => {
                     const codigo = item.dataset.codigo.toUpperCase();
                     if (codigo.includes(input)) {
                         item.style.display = "flex";
-                        contieneCoincidencia = true;
+                        hayCoincidencia = true;
                     } else {
                         item.style.display = "none";
                     }
@@ -28,7 +27,7 @@
                 const cuerpo = acordeon.querySelector(".accordion-collapse");
                 const boton = acordeon.querySelector(".accordion-button");
 
-                if (contieneCoincidencia) {
+                if (hayCoincidencia) {
                     cuerpo.classList.add("show");
                     boton.classList.remove("collapsed");
                     boton.setAttribute("aria-expanded", "true");
