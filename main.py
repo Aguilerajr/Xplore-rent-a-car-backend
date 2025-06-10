@@ -14,6 +14,7 @@ from routes.asignar import router as asignar_router
 from routes.admin_panel import router as admin_panel_router
 from routes.reporte_semanal import router as reporte_router
 from routes.reporte_formulario import router as reporte_formulario_router
+from routes import panel_cola
 
 app = FastAPI()
 
@@ -40,3 +41,4 @@ app.include_router(asignar_router)
 app.include_router(admin_panel_router)
 app.include_router(reporte_router)
 app.include_router(reporte_formulario_router)
+app.include_router(panel_cola.router)
