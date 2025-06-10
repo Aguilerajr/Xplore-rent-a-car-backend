@@ -1,69 +1,70 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>XPLORE - Panel Cola de Lavado</title>
-<link rel="icon" href="/static/icon.png" type="image/png">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-<style>
-  body { background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-  .nav-brand { background-color: #0066b2; padding: 15px; color: white; font-size: 1.5rem; display: flex; align-items: center; }
-  .nav-brand img { height: 40px; margin-right: 10px; }
-  .header { display: flex; align-items: center; justify-content: space-between; }
-  .refresh-btn { font-size: 1.2rem; color: white; background: transparent; border: none; }
-  .table-container { margin: 20px auto; max-width: 90%; }
-  .table th, .table td { vertical-align: middle; }
-  .status-EN:before { content: "⏳ "; }
-  .status-PRO:before { content: "🧼 "; }
-  .status-OK:before { content: "✅ "; }
-  footer { text-align: center; padding: 10px 0; color: #aaa; }
-</style>
-<script>
-function actualizar() {
-  window.location.reload();
-}
-setInterval(actualizar, 30000); // Recarga cada 30 segundos
-</script>
+  <meta charset="UTF-8">
+  <title>XPLORE - Panel Cola de Lavado</title>
+  <link rel="icon" href="/static/icon.png" type="image/png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .nav-brand { background-color: #0066b2; padding: 15px; color: white; font-size: 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+    .nav-brand img { height: 40px; margin-right: 10px; }
+    .refresh-btn { font-size: 1.2rem; color: white; background: transparent; border: none; }
+    .table-container { margin: 20px auto; max-width: 90%; }
+    .table th, .table td { vertical-align: middle; }
+    .status-EN::before { content: "⏳ "; }
+    .status-PRO::before { content: "🧼 "; }
+    .status-OK::before { content: "✅ "; }
+    footer { text-align: center; padding: 10px 0; color: #aaa; }
+  </style>
+  <script>
+    function actualizar() {
+      window.location.reload();
+    }
+    setInterval(actualizar, 30000); // Recarga cada 30 segundos
+  </script>
 </head>
 <body>
-<nav class="nav-brand">
-  <img src="/static/logo_xplore.png" alt="Xplore Logo">
-  XPLORE - Cola de Lavado (Tiempo Real)
-  <button class="refresh-btn" onclick="actualizar()" title="Refrescar ahora">
-    <i class="bi bi-arrow-clockwise"></i>
-  </button>
-</nav>
+  <nav class="nav-brand">
+    <div class="d-flex align-items-center">
+      <img src="/static/logo_xplore.png" alt="Xplore Logo">
+      <span>XPLORE - Cola de Lavado (Tiempo Real)</span>
+    </div>
+    <button class="refresh-btn" onclick="actualizar()" title="Refrescar ahora">
+      <i class="bi bi-arrow-clockwise"></i>
+    </button>
+  </nav>
 
-<div class="table-container">
-  <table class="table table-striped table-hover bg-white shadow-sm rounded">
-    <thead class="table-primary">
-      <tr>
-        <th>#</th>
-        <th>Código Vehículo</th>
-        <th>Clasificación</th>
-        <th>Estado</th>
-        <th>Asignado a</th>
-        <th>Ingreso</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for i, cl in enumerate(cola_lavado, start=1) %}
-      <tr>
-        <td>{{ i }}</td>
-        <td><strong>{{ cl.codigo_vehiculo }}</strong></td>
-        <td>{{ descripcion_clasificacion(cl.clasificacion) }}</td>
-        <td class="status-{{ cl.estado|upper }}">{{ cl.estado }}</td>
-        <td>{{ cl.asignado_a or '-' }}</td>
-        <td>{{ cl.fecha.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+  <div class="table-container">
+    <table class="table table-striped table-hover bg-white shadow-sm rounded">
+      <thead class="table-primary">
+        <tr>
+          <th>#</th>
+          <th>Código Vehículo</th>
+          <th>Clasificación</th>
+          <th>Estado</th>
+          <th>Asignado a</th>
+          <th>Ingreso</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cl in cola_lavado %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ cl.codigo_vehiculo }}</strong></td>
+          <td>{{ descripcion_clasificacion(cl.clasificacion) }}</td>
+          <td class="status-{{ cl.estado|upper }}">{{ cl.estado }}</td>
+          <td>{{ cl.asignado_a or '-' }}</td>
+          <td>{{ cl.fecha.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
-<footer>
-  &copy; {{ now().year }} XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
-</footer>
+  <footer>
+    &copy; {{ now.year }} XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
+  </footer>
 </body>
 </html>
