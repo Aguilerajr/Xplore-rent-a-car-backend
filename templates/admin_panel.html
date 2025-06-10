@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -49,17 +50,16 @@
 
 <div class="container">
     <ul class="nav nav-tabs mb-4" id="adminTab" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="vehiculos-tab" data-bs-toggle="tab" data-bs-target="#vehiculos" type="button" role="tab">Vehículos</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="empleados-tab" data-bs-toggle="tab" data-bs-target="#empleados" type="button" role="tab">Empleados</button>
-        </li>
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#vehiculos">Vehículos</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#empleados">Empleados</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#clasificaciones">Clasificaciones</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cola">Cola Lavado</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#registros">Registros Lavado</button></li>
     </ul>
 
-    <div class="tab-content" id="adminTabContent">
-        <!-- Vehículos -->
-        <div class="tab-pane fade show active" id="vehiculos" role="tabpanel">
+    <div class="tab-content">
+
+        <div class="tab-pane fade show active" id="vehiculos">
             <input type="text" class="form-control mb-3" id="buscador" onkeyup="filtrarVehiculos()" placeholder="Buscar por código...">
             <div class="accordion" id="vehiculosAccordion">
                 {% set letras = {} %}
@@ -70,7 +70,6 @@
                     {% endif %}
                     {% set _ = letras[letra].append(v) %}
                 {% endfor %}
-
                 {% for letra, vehiculos_letra in letras.items() %}
                 <div class="accordion-item">
                     <h2 class="accordion-header" id="heading-{{ letra }}">
@@ -83,12 +82,10 @@
                             <ul class="list-group">
                                 {% for v in vehiculos_letra %}
                                 <li class="list-group-item d-flex justify-content-between align-items-center vehiculo-item" data-codigo="{{ v.codigo | upper }}">
+                                    <span><strong>{{ v.codigo }}</strong> - {{ v.marca }} {{ v.modelo }} ({{ v.tipo }})</span>
                                     <span>
-                                        <strong>{{ v.codigo }}</strong> - {{ v.marca }} {{ v.modelo }} ({{ v.tipo }})
-                                    </span>
-                                    <span>
-                                        <a href="/admin_panel/editar_vehiculo/{{ v.codigo }}" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
-                                        <a href="/admin_panel/eliminar_vehiculo/{{ v.codigo }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Estás seguro de eliminar este vehículo?')">🗑️ Eliminar</a>
+                                        <a href="#" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
+                                        <a href="#" class="btn btn-sm btn-outline-danger">🗑️ Eliminar</a>
                                     </span>
                                 </li>
                                 {% endfor %}
@@ -100,21 +97,54 @@
             </div>
         </div>
 
-        <!-- Empleados -->
-        <div class="tab-pane fade" id="empleados" role="tabpanel">
+        <div class="tab-pane fade" id="empleados">
             <h2 class="text-success">Empleados</h2>
             <ul class="list-group">
                 {% for e in empleados %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <span><strong>{{ e.nombre }}</strong> - Código: {{ e.codigo }}</span>
                     <span>
-                        <a href="/admin_panel/editar_empleado/{{ e.codigo }}" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
-                        <a href="/admin_panel/eliminar_empleado/{{ e.codigo }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar este empleado?')">🗑️ Eliminar</a>
+                        <a href="#" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
+                        <a href="#" class="btn btn-sm btn-outline-danger">🗑️ Eliminar</a>
                     </span>
                 </li>
                 {% endfor %}
             </ul>
         </div>
+
+        <div class="tab-pane fade" id="clasificaciones">
+            <h2 class="text-info">Clasificaciones</h2>
+            <ul class="list-group">
+                {% for c in clasificaciones %}
+                <li class="list-group-item">
+                    <strong>{{ c.codigo }}</strong> - {{ c.clasificacion }} | Revisado por: {{ c.revisado_por }} | Tiempo estimado: {{ c.tiempo_estimado }} min
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="tab-pane fade" id="cola">
+            <h2 class="text-warning">Cola de Lavado</h2>
+            <ul class="list-group">
+                {% for cl in cola_lavado %}
+                <li class="list-group-item">
+                    <strong>{{ cl.codigo_vehiculo }}</strong> - Clasificación: {{ cl.clasificacion }} | Estado: {{ cl.estado }} | Asignado a: {{ cl.asignado_a }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="tab-pane fade" id="registros">
+            <h2 class="text-secondary">Registros de Lavado</h2>
+            <ul class="list-group">
+                {% for r in registros_lavado %}
+                <li class="list-group-item">
+                    <strong>{{ r.vehiculo }}</strong> - {{ r.nombre_empleado }} | {{ r.inicio }} → {{ r.fin }} | Real: {{ r.tiempo_real }} min | Estimado: {{ r.tiempo_estimado }} | Eficiencia: {{ r.eficiencia }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
     </div>
 </div>
 </body>
