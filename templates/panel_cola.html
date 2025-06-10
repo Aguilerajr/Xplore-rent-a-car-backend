@@ -18,12 +18,6 @@
     .status-OK::before { content: "✅ "; }
     footer { text-align: center; padding: 10px 0; color: #aaa; }
   </style>
-  <script>
-    function actualizar() {
-      window.location.reload();
-    }
-    setInterval(actualizar, 30000); // Recarga cada 30 segundos
-  </script>
 </head>
 <body>
   <nav class="nav-brand">
@@ -31,7 +25,7 @@
       <img src="/static/logo_xplore.png" alt="Xplore Logo">
       <span>XPLORE - Cola de Lavado (Tiempo Real)</span>
     </div>
-    <button class="refresh-btn" onclick="actualizar()" title="Refrescar ahora">
+    <button class="refresh-btn" onclick="cargarCola()" title="Refrescar ahora">
       <i class="bi bi-arrow-clockwise"></i>
     </button>
   </nav>
@@ -48,23 +42,49 @@
           <th>Ingreso</th>
         </tr>
       </thead>
-      <tbody>
-        {% for cl in cola_lavado %}
-        <tr>
-          <td>{{ loop.index }}</td>
-          <td><strong>{{ cl.codigo_vehiculo }}</strong></td>
-          <td>{{ cl.clasificacion }}</td>
-          <td class="status-{{ cl.estado|upper }}">{{ cl.estado }}</td>
-          <td>{{ cl.asignado_a or '-' }}</td>
-          <td>{{ cl.fecha.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-        </tr>
-        {% endfor %}
+      <tbody id="tabla-body">
+        <!-- Se rellenará con JavaScript -->
       </tbody>
     </table>
   </div>
 
   <footer>
-    &copy; {{ now.year }} XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
+    &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
   </footer>
+
+  <script>
+    async function cargarCola() {
+      try {
+        const response = await fetch("/api/cola_lavado");
+        const data = await response.json();
+        const tbody = document.getElementById("tabla-body");
+        tbody.innerHTML = "";
+
+        data.forEach((item, index) => {
+          const fila = document.createElement("tr");
+          fila.innerHTML = `
+            <td>${index + 1}</td>
+            <td><strong>${item.codigo_vehiculo}</strong></td>
+            <td>${item.clasificacion}</td>
+            <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
+            <td>${item.asignado_a}</td>
+            <td>${item.fecha}</td>
+          `;
+          tbody.appendChild(fila);
+        });
+      } catch (error) {
+        console.error("Error al cargar la cola:", error);
+      }
+    }
+
+    // Cargar una vez al inicio
+    cargarCola();
+
+    // Cargar cada 30 segundos
+    setInterval(cargarCola, 30000);
+
+    // Mostrar año actual
+    document.getElementById("anio-actual").textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
