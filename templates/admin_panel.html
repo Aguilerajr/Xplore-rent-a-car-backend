@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -39,6 +38,16 @@
                     boton.setAttribute("aria-expanded", "false");
                 }
             });
+
+            // Desplazar y resaltar si hay coincidencia exacta
+            const resultadoExacto = document.querySelector(`[data-codigo="${input}"]`);
+            if (resultadoExacto) {
+                resultadoExacto.scrollIntoView({ behavior: "smooth", block: "center" });
+                resultadoExacto.classList.add("bg-success", "text-white");
+                setTimeout(() => {
+                    resultadoExacto.classList.remove("bg-success", "text-white");
+                }, 2000);
+            }
         }
     </script>
 </head>
