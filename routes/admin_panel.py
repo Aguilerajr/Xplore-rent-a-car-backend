@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -13,12 +12,17 @@ templates = Jinja2Templates(directory="templates")
 def mostrar_panel_admin(request: Request, db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
     vehiculos = db.query(Vehiculo).all()
     empleados = db_emp.query(Empleado).all()
-    registros = db.query(RegistroLavado).order_by(RegistroLavado.id.desc()).limit(10).all()
+    registros_lavado = db.query(RegistroLavado).order_by(RegistroLavado.id.desc()).limit(10).all()
+    clasificaciones = db.query(Clasificacion).all()
+    cola_lavado = db.query(ColaLavado).all()
+
     return templates.TemplateResponse("admin_panel.html", {
         "request": request,
         "vehiculos": vehiculos,
         "empleados": empleados,
-        "registros": registros
+        "registros_lavado": registros_lavado,
+        "clasificaciones": clasificaciones,
+        "cola_lavado": cola_lavado
     })
 
 @router.get("/admin_panel/editar_vehiculo/{codigo}", response_class=HTMLResponse)
