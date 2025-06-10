@@ -17,9 +17,17 @@ from fastapi.responses import JSONResponse
 def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
     empleado = db.query(Empleado).filter(Empleado.codigo == codigo).first()
     if empleado:
-        return JSONResponse(status_code=200, content={"mensaje": "✅ Código válido", "nombre": empleado.nombre})
+        return JSONResponse(status_code=200, content={
+            "status": "ok",  # <- requerido por la app
+            "mensaje": "✅ Código válido",
+            "nombre": empleado.nombre
+        })
     else:
-        return JSONResponse(status_code=401, content={"mensaje": "❌ Código no registrado"})
+        return JSONResponse(status_code=401, content={
+            "status": "error",  # <- opcional pero recomendable
+            "mensaje": "❌ Código no registrado"
+        })
+
 
 
 @router.get("/agregar_empleado", response_class=HTMLResponse)
