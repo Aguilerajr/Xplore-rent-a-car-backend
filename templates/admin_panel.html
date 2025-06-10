@@ -128,7 +128,7 @@
             <ul class="list-group">
                 {% for cl in cola_lavado %}
                 <li class="list-group-item">
-                    <strong>{{ cl.codigo_vehiculo }}</strong> - Clasificación: {{ cl.clasificacion }} | Estado: {{ cl.estado }} | Asignado a: {{ cl.asignado_a }}
+                    <strong>{{ cl.codigo_vehiculo }}</strong> - Clasificación: {{ descripcion_clasificacion(cl.clasificacion) }} | Estado: {{ cl.estado }} | Asignado a: {{ cl.asignado_a }}
                 </li>
                 {% endfor %}
             </ul>

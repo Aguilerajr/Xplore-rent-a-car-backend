@@ -8,6 +8,24 @@ from models import Vehiculo, Clasificacion, ColaLavado, RegistroLavado, Empleado
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
+# ✅ Función para traducir códigos como D2 a "Pick Up - Normal"
+def descripcion_clasificacion(codigo: str) -> str:
+    tipo_map_inv = {
+        "A": "Camioneta Grande", "B": "Camioneta pequeña", "C": "Busito",
+        "D": "Pick Up", "E": "Turismo normal", "F": "Turismo pequeño"
+    }
+    clasificacion_map_inv = {
+        "1": "Muy sucio", "2": "Normal", "3": "Poco sucio",
+        "4": "Shampuseado", "5": "Franeleado"
+    }
+    if len(codigo) >= 2:
+        letra = codigo[0]
+        numero = codigo[1]
+        tipo = tipo_map_inv.get(letra, letra)
+        suciedad = clasificacion_map_inv.get(numero, numero)
+        return f"{tipo} - {suciedad}"
+    return codigo
+
 @router.get("/admin_panel", response_class=HTMLResponse)
 def mostrar_panel_admin(request: Request, db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
     vehiculos = db.query(Vehiculo).all()
@@ -22,7 +40,8 @@ def mostrar_panel_admin(request: Request, db: Session = Depends(get_db), db_emp:
         "empleados": empleados,
         "registros_lavado": registros_lavado,
         "clasificaciones": clasificaciones,
-        "cola_lavado": cola_lavado
+        "cola_lavado": cola_lavado,
+        "descripcion_clasificacion": descripcion_clasificacion  # ✅ pasamos la función
     })
 
 @router.get("/admin_panel/editar_vehiculo/{codigo}", response_class=HTMLResponse)
