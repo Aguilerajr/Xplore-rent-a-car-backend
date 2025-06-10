@@ -11,6 +11,17 @@ templates = Jinja2Templates(directory="templates")
 
 CLAVE_ACCESO = "admin123"  # Puedes cambiarla
 
+from fastapi.responses import JSONResponse
+
+@router.post("/login")
+def login(codigo: str = Form(...), db: Session = Depends(get_db_empleados)):
+    empleado = db.query(Empleado).filter(Empleado.codigo == codigo).first()
+    if empleado:
+        return JSONResponse(status_code=200, content={"mensaje": "✅ Código válido", "nombre": empleado.nombre})
+    else:
+        return JSONResponse(status_code=401, content={"mensaje": "❌ Código no registrado"})
+
+
 @router.get("/agregar_empleado", response_class=HTMLResponse)
 def mostrar_formulario_empleado(request: Request):
     return templates.TemplateResponse("agregar_empleado.html", {"request": request, "mensaje": ""})
