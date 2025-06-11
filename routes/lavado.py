@@ -14,7 +14,7 @@ def checkin(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    # Revisar si el empleado ya tiene un check-in activo
+    # Verificar si el empleado ya tiene un check-in activo
     activo = db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first()
     if activo:
         return {"error": "Ya tienes un check-in activo"}
@@ -24,12 +24,15 @@ def checkin(
     if not clasificacion:
         return {"error": "Vehículo no está clasificado"}
 
-    # Verificar que el vehículo esté en la cola
-    cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).first()
+    # Verificar que el vehículo esté en cola o en progreso
+    cola = db.query(ColaLavado).filter(
+        ColaLavado.codigo_vehiculo == codigo,
+        ColaLavado.estado.in_(["en_cola", "en_progreso"])
+    ).first()
     if not cola:
-        return {"error": "Vehículo ya fue completado"}
+        return {"error": "Vehículo ya fue finalizado"}
 
-    # Si está en cola, cambiar su estado a en_progreso
+    # Si está en cola, cambiar a en_progreso
     if cola.estado == "en_cola":
         cola.estado = "en_progreso"
         db.commit()
@@ -44,7 +47,7 @@ def checkin(
     except Exception as e:
         return {"error": f"Formato de fecha inválido: {str(e)}"}
 
-    # Crear nuevo registro de lavado
+    # Crear nuevo registro
     nuevo = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
@@ -86,17 +89,21 @@ def registrar_lavado(
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    registro = db.query(RegistroLavado).filter_by(vehiculo=codigo, empleado=empleado, fin=None).first()
-    if registro:
-        registro.fin = fin_dt
-        registro.tiempo_real = tiempo_real
-        registro.eficiencia = f"{eficiencia}%"
-    else:
+    registro = db.query(RegistroLavado).filter_by(
+        vehiculo=codigo,
+        empleado=empleado,
+        fin=None
+    ).first()
+
+    if not registro:
         return {"error": "No hay check-in previo"}
 
+    registro.fin = fin_dt
+    registro.tiempo_real = tiempo_real
+    registro.eficiencia = f"{eficiencia}%"
     db.commit()
 
-    # Verificar si ya no hay nadie trabajando en ese vehículo
+    # Verificar si ya no quedan empleados activos para ese vehículo
     activos = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()

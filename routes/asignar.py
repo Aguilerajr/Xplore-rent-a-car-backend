@@ -11,7 +11,10 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/asignar", response_class=HTMLResponse)
 def mostrar_asignacion(request: Request, db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
-    vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
+    # Mostrar todos los vehículos en cola o en progreso
+    vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter(
+        ColaLavado.estado.in_(["en_cola", "en_progreso"])
+    ).all()
     disponibles = [v[0] for v in vehiculos_en_cola]
 
     return templates.TemplateResponse("asignar.html", {
@@ -28,19 +31,28 @@ def asignar_vehiculo(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    vehiculo_en_cola = db.query(ColaLavado).filter_by(codigo_vehiculo=vehiculo).first()
+    vehiculo_en_cola = db.query(ColaLavado).filter(
+        ColaLavado.codigo_vehiculo == vehiculo,
+        ColaLavado.estado.in_(["en_cola", "en_progreso"])
+    ).first()
+
     empleado_obj = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     clasificacion = db.query(Clasificacion).filter_by(codigo=vehiculo).first()
 
     if not vehiculo_en_cola:
-        mensaje = f"❌ El vehículo {vehiculo} no está en cola."
+        mensaje = f"❌ El vehículo {vehiculo} no está en cola ni en progreso."
     elif not empleado_obj:
         mensaje = f"❌ El empleado {empleado} no existe."
     elif not clasificacion:
         mensaje = f"❌ El vehículo {vehiculo} no ha sido clasificado."
     else:
-        # Verificar que el empleado no tenga ya un check-in abierto
-        existe = db.query(RegistroLavado).filter_by(vehiculo=vehiculo, empleado=empleado, fin=None).first()
+        # Verificar si ya tiene un check-in abierto en este vehículo
+        existe = db.query(RegistroLavado).filter_by(
+            vehiculo=vehiculo,
+            empleado=empleado,
+            fin=None
+        ).first()
+
         if existe:
             mensaje = f"⚠️ El empleado {empleado} ya está asignado a {vehiculo}."
         else:
@@ -55,10 +67,14 @@ def asignar_vehiculo(
                 eficiencia="0%"
             )
             db.add(nuevo_registro)
+            vehiculo_en_cola.estado = "en_progreso"
             db.commit()
             mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
 
-    vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
+    # Volver a cargar los vehículos válidos
+    vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter(
+        ColaLavado.estado.in_(["en_cola", "en_progreso"])
+    ).all()
     disponibles = [v[0] for v in vehiculos_en_cola]
 
     return templates.TemplateResponse("asignar.html", {
