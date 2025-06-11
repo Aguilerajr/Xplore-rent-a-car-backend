@@ -11,12 +11,14 @@
     .nav-brand { background-color: #0066b2; padding: 15px; color: white; font-size: 1.5rem; display: flex; align-items: center; justify-content: space-between; }
     .nav-brand img { height: 40px; margin-right: 10px; }
     .refresh-btn { font-size: 1.2rem; color: white; background: transparent; border: none; }
-    .table-container { margin: 20px auto; max-width: 90%; }
-    .table th, .table td { vertical-align: middle; }
     .status-EN::before { content: "⏳ "; }
     .status-PRO::before { content: "🧼 "; }
     .status-OK::before { content: "✅ "; }
     footer { text-align: center; padding: 10px 0; color: #aaa; }
+    .split-container { display: flex; gap: 20px; padding: 20px; }
+    .split-table { flex: 1; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    .table th, .table td { vertical-align: middle; }
+    h5 { background: #0066b2; color: white; padding: 10px; border-radius: 10px 10px 0 0; }
   </style>
 </head>
 <body>
@@ -30,26 +32,44 @@
     </button>
   </nav>
 
-  <div class="table-container">
-    <table class="table table-striped table-hover bg-white shadow-sm rounded">
-      <thead class="table-primary">
-        <tr>
-          <th>#</th>
-          <th>Código Vehículo</th>
-          <th>Clasificación</th>
-          <th>Estado</th>
-          <th>Asignado a</th>
-          <th>Ingreso</th>
-        </tr>
-      </thead>
-      <tbody id="tabla-body">
-        <!-- Se rellenará con JavaScript -->
-      </tbody>
-    </table>
+  <div class="split-container">
+    <div class="split-table">
+      <h5>🅰️ Vehículos en Cola (sin asignar)</h5>
+      <table class="table table-bordered table-hover">
+        <thead class="table-primary">
+          <tr>
+            <th>#</th>
+            <th>Código</th>
+            <th>Clasificación</th>
+            <th>Ingreso</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-cola">
+          <!-- JS insertará filas -->
+        </tbody>
+      </table>
+    </div>
+    <div class="split-table">
+      <h5>🅱️ Vehículos en Proceso (con lavador activo)</h5>
+      <table class="table table-bordered table-hover">
+        <thead class="table-warning">
+          <tr>
+            <th>#</th>
+            <th>Código</th>
+            <th>Clasificación</th>
+            <th>Asignado</th>
+            <th>Ingreso</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-proceso">
+          <!-- JS insertará filas -->
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <footer>
-    &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
+    &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa
   </footer>
 
   <script>
@@ -57,33 +77,43 @@
       try {
         const response = await fetch("/api/cola_lavado");
         const data = await response.json();
-        const tbody = document.getElementById("tabla-body");
-        tbody.innerHTML = "";
+        const tbodyCola = document.getElementById("tabla-cola");
+        const tbodyProceso = document.getElementById("tabla-proceso");
+        tbodyCola.innerHTML = "";
+        tbodyProceso.innerHTML = "";
 
-        data.forEach((item, index) => {
-          const fila = document.createElement("tr");
-          fila.innerHTML = `
-            <td>${index + 1}</td>
-            <td><strong>${item.codigo_vehiculo}</strong></td>
-            <td>${item.clasificacion}</td>
-            <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
-            <td>${item.asignado_a}</td>
-            <td>${item.fecha}</td>
-          `;
-          tbody.appendChild(fila);
+        let i = 1, j = 1;
+        data.forEach(item => {
+          const enProceso = item.asignado_a && item.asignado_a !== "-" && item.estado !== "ok";
+
+          if (enProceso) {
+            const fila = document.createElement("tr");
+            fila.innerHTML = `
+              <td>${j++}</td>
+              <td><strong>${item.codigo_vehiculo}</strong></td>
+              <td>${item.clasificacion}</td>
+              <td>${item.asignado_a}</td>
+              <td>${item.fecha}</td>
+            `;
+            tbodyProceso.appendChild(fila);
+          } else {
+            const fila = document.createElement("tr");
+            fila.innerHTML = `
+              <td>${i++}</td>
+              <td><strong>${item.codigo_vehiculo}</strong></td>
+              <td>${item.clasificacion}</td>
+              <td>${item.fecha}</td>
+            `;
+            tbodyCola.appendChild(fila);
+          }
         });
       } catch (error) {
         console.error("Error al cargar la cola:", error);
       }
     }
 
-    // Cargar una vez al inicio
     cargarCola();
-
-    // Cargar cada 30 segundos
     setInterval(cargarCola, 30000);
-
-    // Mostrar año actual
     document.getElementById("anio-actual").textContent = new Date().getFullYear();
   </script>
 </body>
