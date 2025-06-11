@@ -11,7 +11,6 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/panel_cola", response_class=HTMLResponse)
 def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
-    # Igual que antes, no se modifica
     cola = db.query(
         ColaLavado,
         Clasificacion.clasificacion.label("clasificacion_detalle")
@@ -37,7 +36,6 @@ def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/api/cola_lavado")
 def obtener_cola_lavado(db: Session = Depends(get_db)):
-    # Obtener todos los vehículos en cola
     cola = db.query(
         ColaLavado,
         Clasificacion.clasificacion.label("clasificacion_detalle")
@@ -48,14 +46,19 @@ def obtener_cola_lavado(db: Session = Depends(get_db)):
     datos = []
 
     for cl, detalle in cola:
-        # Consultar si tiene al menos un lavador activo
-        activo = db.query(RegistroLavado).filter_by(vehiculo=cl.codigo_vehiculo, fin=None).first()
-        estado = "en_proceso" if activo else "en_cola"
+        # Buscar empleados activos lavando ese vehículo
+        registros = db.query(RegistroLavado).filter_by(vehiculo=cl.codigo_vehiculo, fin=None).all()
+        if registros:
+            estado = "en_proceso"
+            asignado_a = ", ".join([r.empleado for r in registros])
+        else:
+            estado = "en_cola"
+            asignado_a = "-"
 
         datos.append({
             "codigo_vehiculo": cl.codigo_vehiculo,
             "estado": estado,
-            "asignado_a": cl.asignado_a or "-",
+            "asignado_a": asignado_a,
             "fecha": cl.fecha.strftime("%Y-%m-%d %H:%M:%S"),
             "clasificacion": detalle
         })
