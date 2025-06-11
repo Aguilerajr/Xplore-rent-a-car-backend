@@ -25,8 +25,8 @@ def checkin(
     if not clasificacion or not en_cola:
         return {"error": "Vehículo no disponible"}
 
-    # Cambiar estado a "en_progreso"
-    en_cola.estado = "en_progreso"
+    # ✅ Cambiar estado a "en_progreso" usando .update()
+    db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "en_progreso"})
     db.commit()
 
     # Obtener nombre del empleado
