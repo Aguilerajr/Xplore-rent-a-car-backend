@@ -14,31 +14,37 @@ def checkin(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    # Validar si el empleado ya tiene un check-in activo
+    # Revisar si el empleado ya tiene un check-in activo
     activo = db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first()
     if activo:
         return {"error": "Ya tienes un check-in activo"}
 
-    # Verificar si el vehículo existe en la cola y está clasificado
+    # Verificar que el vehículo esté clasificado
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
-    en_cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).first()
-    if not clasificacion or not en_cola:
-        return {"error": "Vehículo no disponible o ya fue finalizado"}
+    if not clasificacion:
+        return {"error": "Vehículo no está clasificado"}
 
-    # Cambiar estado a "en_progreso"
-    db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "en_progreso"})
+    # Verificar que el vehículo esté en la cola
+    cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).first()
+    if not cola:
+        return {"error": "Vehículo ya fue completado"}
+
+    # Si está en cola, cambiar su estado a en_progreso
+    if cola.estado == "en_cola":
+        cola.estado = "en_progreso"
+        db.commit()
 
     # Obtener nombre del empleado
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    # Parsear fecha
+    # Convertir fecha de inicio (string -> datetime)
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
         return {"error": f"Formato de fecha inválido: {str(e)}"}
 
-    # Crear nuevo registro
+    # Crear nuevo registro de lavado
     nuevo = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
@@ -77,22 +83,20 @@ def registrar_lavado(
         return {"error": "No clasificado"}
 
     eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    # Buscar el registro activo
     registro = db.query(RegistroLavado).filter_by(vehiculo=codigo, empleado=empleado, fin=None).first()
-    if not registro:
+    if registro:
+        registro.fin = fin_dt
+        registro.tiempo_real = tiempo_real
+        registro.eficiencia = f"{eficiencia}%"
+    else:
         return {"error": "No hay check-in previo"}
 
-    # Finalizar el registro
-    registro.fin = fin_dt
-    registro.tiempo_real = tiempo_real
-    registro.eficiencia = f"{eficiencia}%"
     db.commit()
 
-    # Verificar si es el último activo
+    # Verificar si ya no hay nadie trabajando en ese vehículo
     activos = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
