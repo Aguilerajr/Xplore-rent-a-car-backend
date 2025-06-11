@@ -1,4 +1,3 @@
-...
 <script>
   async function cargarCola() {
     try {
@@ -10,33 +9,40 @@
       tbodyProceso.innerHTML = "";
 
       let i = 1, j = 1;
-      data.forEach(item => {
-        const estado = item.estado.toLowerCase();  // "en_cola" o "en_proceso"
-        const asignado = item.asignado_a && item.asignado_a !== "-";
 
-        if (estado === "en_proceso" && asignado) {
+      data.forEach(item => {
+        const estado = (item.estado || "").toLowerCase();  // asegura que no sea undefined
+        const codigo = item.codigo_vehiculo || "N/A";
+        const clasificacion = item.clasificacion || "-";
+        const asignado = item.asignado_a || "-";
+        const fecha = item.fecha || "-";
+
+        if (estado === "en_proceso" && asignado !== "-") {
           const fila = document.createElement("tr");
           fila.innerHTML = `
             <td>${j++}</td>
-            <td class="status-PRO"><strong>${item.codigo_vehiculo}</strong></td>
-            <td>${item.clasificacion}</td>
-            <td>${item.asignado_a}</td>
-            <td>${item.fecha}</td>
+            <td class="status-PRO"><strong>${codigo}</strong></td>
+            <td>${clasificacion}</td>
+            <td>${asignado}</td>
+            <td>${fecha}</td>
           `;
           tbodyProceso.appendChild(fila);
         } else {
           const fila = document.createElement("tr");
           fila.innerHTML = `
             <td>${i++}</td>
-            <td class="status-EN"><strong>${item.codigo_vehiculo}</strong></td>
-            <td>${item.clasificacion}</td>
-            <td>${item.fecha}</td>
+            <td class="status-EN"><strong>${codigo}</strong></td>
+            <td>${clasificacion}</td>
+            <td>${fecha}</td>
           `;
           tbodyCola.appendChild(fila);
         }
       });
+
     } catch (error) {
-      console.error("Error al cargar la cola:", error);
+      console.error("❌ Error al cargar la cola:", error);
+      document.getElementById("tabla-cola").innerHTML = `<tr><td colspan="4">Error al cargar datos</td></tr>`;
+      document.getElementById("tabla-proceso").innerHTML = `<tr><td colspan="5">Error al cargar datos</td></tr>`;
     }
   }
 
