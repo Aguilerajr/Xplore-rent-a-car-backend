@@ -25,6 +25,10 @@ def checkin(
     if not clasificacion or not en_cola:
         return {"error": "Vehículo no disponible"}
 
+    # Cambiar estado a "en_progreso"
+    en_cola.estado = "en_progreso"
+    db.commit()
+
     # Obtener nombre del empleado
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
@@ -85,8 +89,6 @@ def registrar_lavado(
     else:
         return {"error": "No hay check-in previo"}
 
-    # Marcar como completado
-    db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
     db.commit()
 
     # Si no quedan lavadores activos en ese vehículo, eliminar de cola y clasificación
