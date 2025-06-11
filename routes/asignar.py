@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db, get_db_empleados
-from models import ColaLavado, Empleado, Clasificacion, RegistroLavado
+from models import ColaLavado, Empleado, Clasificacion
 from datetime import datetime
 
 router = APIRouter()
@@ -11,7 +11,7 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/asignar", response_class=HTMLResponse)
 def mostrar_asignacion(request: Request, db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
-    # Mostrar todos los vehículos en cola o en progreso
+    # Mostrar vehículos que estén en cola o en progreso
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter(
         ColaLavado.estado.in_(["en_cola", "en_progreso"])
     ).all()
@@ -31,11 +31,13 @@ def asignar_vehiculo(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
+    # Validar que el vehículo esté en cola o en progreso
     vehiculo_en_cola = db.query(ColaLavado).filter(
         ColaLavado.codigo_vehiculo == vehiculo,
         ColaLavado.estado.in_(["en_cola", "en_progreso"])
     ).first()
 
+    # Validar existencia del empleado y clasificación
     empleado_obj = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     clasificacion = db.query(Clasificacion).filter_by(codigo=vehiculo).first()
 
@@ -46,32 +48,10 @@ def asignar_vehiculo(
     elif not clasificacion:
         mensaje = f"❌ El vehículo {vehiculo} no ha sido clasificado."
     else:
-        # Verificar si ya tiene un check-in abierto en este vehículo
-        existe = db.query(RegistroLavado).filter_by(
-            vehiculo=vehiculo,
-            empleado=empleado,
-            fin=None
-        ).first()
+        # Asignación exitosa (pero no genera check-in)
+        mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado} (esperando check-in)."
 
-        if existe:
-            mensaje = f"⚠️ El empleado {empleado} ya está asignado a {vehiculo}."
-        else:
-            nuevo_registro = RegistroLavado(
-                vehiculo=vehiculo,
-                empleado=empleado,
-                nombre_empleado=empleado_obj.nombre,
-                inicio=datetime.now(),
-                fin=None,
-                tiempo_real=0,
-                tiempo_estimado=clasificacion.tiempo_estimado,
-                eficiencia="0%"
-            )
-            db.add(nuevo_registro)
-            vehiculo_en_cola.estado = "en_progreso"
-            db.commit()
-            mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
-
-    # Volver a cargar los vehículos válidos
+    # Recargar lista de disponibles
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter(
         ColaLavado.estado.in_(["en_cola", "en_progreso"])
     ).all()
