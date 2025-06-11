@@ -20,10 +20,18 @@ def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
 
     cola_formateada = []
     for cl, detalle in cola:
+        registros = db.query(RegistroLavado).filter_by(vehiculo=cl.codigo_vehiculo, fin=None).all()
+        if registros:
+            estado = "en_proceso"
+            asignado_a = ", ".join([r.empleado for r in registros])
+        else:
+            estado = "en_cola"
+            asignado_a = "-"
+
         cola_formateada.append({
             "codigo_vehiculo": cl.codigo_vehiculo,
-            "estado": cl.estado,
-            "asignado_a": cl.asignado_a,
+            "estado": estado,
+            "asignado_a": asignado_a,
             "fecha": cl.fecha,
             "clasificacion": detalle
         })
@@ -44,9 +52,7 @@ def obtener_cola_lavado(db: Session = Depends(get_db)):
     ).order_by(ColaLavado.fecha).all()
 
     datos = []
-
     for cl, detalle in cola:
-        # Buscar empleados activos lavando ese vehículo
         registros = db.query(RegistroLavado).filter_by(vehiculo=cl.codigo_vehiculo, fin=None).all()
         if registros:
             estado = "en_proceso"
