@@ -30,9 +30,9 @@ def checkin(
         ColaLavado.estado.in_(["en_cola", "en_progreso"])
     ).first()
     if not cola:
-        return {"error": "Vehículo ya fue finalizado o no está en cola"}
+        return {"error": "Vehículo no está disponible (posiblemente ya finalizado)"}
 
-    # Si está en cola, cambiar a en_progreso
+    # Si el vehículo está en cola, actualizar estado a "en_progreso"
     if cola.estado == "en_cola":
         cola.estado = "en_progreso"
         db.commit()
@@ -41,7 +41,7 @@ def checkin(
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    # Convertir fecha de inicio
+    # Parsear fecha de inicio
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
@@ -73,6 +73,7 @@ def registrar_lavado(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
+    # Parsear fechas
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
         fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
@@ -81,14 +82,17 @@ def registrar_lavado(
 
     tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
 
+    # Verificar clasificación
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     if not clasificacion:
         return {"error": "No clasificado"}
 
     eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
+
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
+    # Buscar el registro activo
     registro = db.query(RegistroLavado).filter_by(
         vehiculo=codigo,
         empleado=empleado,
@@ -98,12 +102,13 @@ def registrar_lavado(
     if not registro:
         return {"error": "No hay check-in previo"}
 
+    # Cerrar el registro
     registro.fin = fin_dt
     registro.tiempo_real = tiempo_real
     registro.eficiencia = f"{eficiencia}%"
     db.commit()
 
-    # Eliminar vehículo de cola y clasificaciones solo si ya nadie está lavando
+    # Si ya nadie más está lavando ese vehículo, eliminarlo de la cola y clasificaciones
     activos = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
