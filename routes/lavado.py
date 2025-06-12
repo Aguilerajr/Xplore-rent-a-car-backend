@@ -19,9 +19,12 @@ def checkin(
     if activo:
         return {"error": "Ya tienes un check-in activo"}
 
-    # Verificar que el vehículo esté clasificado y en cola
+    # Verificar que el vehículo esté clasificado y en cola o en proceso
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
-    en_cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo, estado="en_cola").first()
+    en_cola = db.query(ColaLavado).filter(
+        ColaLavado.codigo_vehiculo == codigo,
+        ColaLavado.estado.in_(["en_cola", "en_proceso"])
+    ).first()
     if not clasificacion or not en_cola:
         return {"error": "Vehículo no disponible"}
 
@@ -47,8 +50,12 @@ def checkin(
         eficiencia="0%"
     )
     db.add(nuevo)
-    db.commit()
 
+    # Cambiar estado de en_cola a en_proceso si aplica
+    if en_cola.estado == "en_cola":
+        en_cola.estado = "en_proceso"
+
+    db.commit()
     return {"status": "checkin exitoso"}
 
 
