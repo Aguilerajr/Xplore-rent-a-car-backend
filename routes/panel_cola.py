@@ -3,15 +3,15 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db
-from models import ColaLavado, Clasificacion, RegistroLavado
+from models import ColaLavado, Clasificacion
 from datetime import datetime
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-
 @router.get("/panel_cola", response_class=HTMLResponse)
 def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
+    # Traer cola con descripción desde la tabla clasificaciones
     cola = db.query(
         ColaLavado,
         Clasificacion.clasificacion.label("clasificacion_detalle")
@@ -19,22 +19,15 @@ def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
         Clasificacion, Clasificacion.codigo == ColaLavado.codigo_vehiculo
     ).order_by(ColaLavado.fecha).all()
 
+    # Preparar datos combinados para la plantilla
     cola_formateada = []
     for cl, detalle in cola:
-        registros = db.query(RegistroLavado).filter_by(vehiculo=cl.codigo_vehiculo, fin=None).all()
-        if registros:
-            estado = "en_proceso"
-            asignado_a = ", ".join([r.empleado for r in registros])
-        else:
-            estado = "en_cola"
-            asignado_a = "-"
-
         cola_formateada.append({
             "codigo_vehiculo": cl.codigo_vehiculo,
-            "estado": estado,
-            "asignado_a": asignado_a,
+            "estado": cl.estado,
+            "asignado_a": cl.asignado_a,
             "fecha": cl.fecha,
-            "clasificacion": detalle
+            "clasificacion": detalle  # ejemplo: "D2"
         })
 
     return templates.TemplateResponse("panel_cola.html", {
@@ -44,6 +37,7 @@ def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
     })
 
 
+# NUEVA RUTA API para recarga automática desde el frontend
 @router.get("/api/cola_lavado")
 def obtener_cola_lavado(db: Session = Depends(get_db)):
     cola = db.query(
@@ -55,18 +49,10 @@ def obtener_cola_lavado(db: Session = Depends(get_db)):
 
     datos = []
     for cl, detalle in cola:
-        registros = db.query(RegistroLavado).filter_by(vehiculo=cl.codigo_vehiculo, fin=None).all()
-        if registros:
-            estado = "en_proceso"
-            asignado_a = ", ".join([r.empleado for r in registros])
-        else:
-            estado = "en_cola"
-            asignado_a = "-"
-
         datos.append({
             "codigo_vehiculo": cl.codigo_vehiculo,
-            "estado": estado,
-            "asignado_a": asignado_a,
+            "estado": cl.estado,
+            "asignado_a": cl.asignado_a or "-",
             "fecha": cl.fecha.strftime("%Y-%m-%d %H:%M:%S"),
             "clasificacion": detalle
         })

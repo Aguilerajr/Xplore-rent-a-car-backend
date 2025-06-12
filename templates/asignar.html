@@ -99,19 +99,16 @@
     inputEmpleado.addEventListener('input', () => {
         const q = inputEmpleado.value;
         if (q.length > 0) {
-            fetch(`/buscar_empleados?q=${encodeURIComponent(q)}`)
+            fetch(`/buscar_empleados?q=${q}`)
                 .then(res => res.json())
                 .then(data => {
                     datalistEmpleado.innerHTML = '';
-                    if (data && data.resultados) {
-                        data.resultados.forEach(codigo => {
-                            const opt = document.createElement('option');
-                            opt.value = codigo;
-                            datalistEmpleado.appendChild(opt);
-                        });
-                    }
-                })
-                .catch(error => console.error("Error buscando empleados:", error));
+                    data.resultados.forEach(codigo => {
+                        const opt = document.createElement('option');
+                        opt.value = codigo;
+                        datalistEmpleado.appendChild(opt);
+                    });
+                });
         } else {
             datalistEmpleado.innerHTML = '';
         }

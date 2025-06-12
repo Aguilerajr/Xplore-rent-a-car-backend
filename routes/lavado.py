@@ -14,36 +14,28 @@ def checkin(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    codigo = codigo.strip().upper()
-    empleado = empleado.strip()
-
+    # Revisar si el empleado ya tiene un check-in activo
     activo = db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first()
     if activo:
         return {"error": "Ya tienes un check-in activo"}
 
+    # Verificar que el vehículo esté clasificado y en cola
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
-    if not clasificacion:
-        return {"error": "Vehículo no está clasificado"}
+    en_cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo, estado="en_cola").first()
+    if not clasificacion or not en_cola:
+        return {"error": "Vehículo no disponible"}
 
-    cola = db.query(ColaLavado).filter(
-        ColaLavado.codigo_vehiculo == codigo,
-        ColaLavado.estado.in_(["en_cola", "en_progreso"])
-    ).first()
-    if not cola:
-        return {"error": "Vehículo no está disponible (posiblemente ya finalizado)"}
-
-    if cola.estado == "en_cola":
-        cola.estado = "en_progreso"
-        db.commit()
-
+    # Obtener nombre del empleado
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
+    # Convertir fecha de inicio (string -> datetime)
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
         return {"error": f"Formato de fecha inválido: {str(e)}"}
 
+    # Crear nuevo registro de lavado
     nuevo = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
@@ -69,9 +61,6 @@ def registrar_lavado(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    codigo = codigo.strip().upper()
-    empleado = empleado.strip()
-
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
         fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
@@ -85,24 +74,22 @@ def registrar_lavado(
         return {"error": "No clasificado"}
 
     eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    registro = db.query(RegistroLavado).filter_by(
-        vehiculo=codigo,
-        empleado=empleado,
-        fin=None
-    ).first()
-
-    if not registro:
+    registro = db.query(RegistroLavado).filter_by(vehiculo=codigo, empleado=empleado, fin=None).first()
+    if registro:
+        registro.fin = fin_dt
+        registro.tiempo_real = tiempo_real
+        registro.eficiencia = f"{eficiencia}%"
+    else:
         return {"error": "No hay check-in previo"}
 
-    registro.fin = fin_dt
-    registro.tiempo_real = tiempo_real
-    registro.eficiencia = f"{eficiencia}%"
+    # Marcar como completado
+    db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
     db.commit()
 
+    # Si no quedan lavadores activos en ese vehículo, eliminar de cola y clasificación
     activos = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
@@ -110,41 +97,3 @@ def registrar_lavado(
         db.commit()
 
     return {"status": "ok", "eficiencia": eficiencia}
-
-
-@router.post("/verificar_disponibilidad")
-def verificar_disponibilidad(
-    codigo: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    codigo = codigo.strip().upper()
-
-    clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
-    cola = db.query(ColaLavado).filter(
-        ColaLavado.codigo_vehiculo == codigo,
-        ColaLavado.estado.in_(["en_cola", "en_progreso"])
-    ).first()
-
-    return {
-        "disponible": bool(clasificado and cola),
-        "clasificado": clasificado is not None,
-        "en_cola": cola is not None,
-        "estado": cola.estado if cola else "finalizado"
-    }
-
-
-@router.get("/verificar/{codigo}")
-def verificar_estado(codigo: str, db: Session = Depends(get_db)):
-    codigo = codigo.strip().upper()
-    clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
-    cola = db.query(ColaLavado).filter(
-        ColaLavado.codigo_vehiculo == codigo,
-        ColaLavado.estado.in_(["en_cola", "en_progreso"])
-    ).first()
-
-    return {
-        "codigo": codigo,
-        "clasificado": bool(clasificado),
-        "cola": bool(cola),
-        "estado": cola.estado if cola else "N/A"
-    }
