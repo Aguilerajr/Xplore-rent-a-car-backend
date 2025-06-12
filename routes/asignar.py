@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db, get_db_empleados
 from models import ColaLavado, Empleado
+from sqlalchemy import text
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -34,14 +35,22 @@ def asignar_vehiculo(
     elif not empleado_obj:
         mensaje = f"❌ El empleado {empleado} no existe."
     else:
-        actuales = vehiculo_obj.asignado_a.split(",") if vehiculo_obj.asignado_a else []
-        if empleado not in actuales:
-            actuales.append(empleado)
-            vehiculo_obj.asignado_a = ",".join(actuales)
-        if vehiculo_obj.estado == "en_cola":
+        # Verificar si el vehículo está clasificado
+        clasificado = db.execute(
+            text("SELECT COUNT(*) FROM clasificaciones WHERE codigo = :codigo"),
+            {"codigo": vehiculo}
+        ).scalar()
+
+        if clasificado == 0:
+            mensaje = f"❌ El vehículo {vehiculo} no está clasificado aún."
+        else:
+            actuales = vehiculo_obj.asignado_a.split(",") if vehiculo_obj.asignado_a else []
+            if empleado not in actuales:
+                actuales.append(empleado)
+                vehiculo_obj.asignado_a = ",".join(actuales)
             vehiculo_obj.estado = "en_progreso"
-        db.commit()
-        mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
+            db.commit()
+            mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
 
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).all()
     disponibles = [v[0] for v in vehiculos_en_cola]
