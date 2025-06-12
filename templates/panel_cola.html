@@ -1,3 +1,4 @@
+<!-- panel_cola.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -13,8 +14,9 @@
     .refresh-btn { font-size: 1.2rem; color: white; background: transparent; border: none; }
     .table-container { margin: 20px auto; max-width: 90%; }
     .table th, .table td { vertical-align: middle; }
-    .status-en_cola::before { content: "⏳ "; }
-    .status-en_progreso::before { content: "🧼 "; }
+    .status-EN::before { content: "⏳ "; }
+    .status-PRO::before { content: "🧼 "; }
+    .status-OK::before { content: "✅ "; }
     footer { text-align: center; padding: 10px 0; color: #aaa; }
   </style>
 </head>
@@ -24,14 +26,13 @@
       <img src="/static/logo_xplore.png" alt="Xplore Logo">
       <span>XPLORE - Cola de Lavado (Tiempo Real)</span>
     </div>
-    <form method="get" action="/panel_cola">
-      <button class="refresh-btn" title="Refrescar ahora">
-        <i class="bi bi-arrow-clockwise"></i>
-      </button>
-    </form>
+    <button class="refresh-btn" onclick="cargarCola()" title="Refrescar ahora">
+      <i class="bi bi-arrow-clockwise"></i>
+    </button>
   </nav>
 
   <div class="table-container">
+    <h4>🚗 Vehículos en cola</h4>
     <table class="table table-striped table-hover bg-white shadow-sm rounded">
       <thead class="table-primary">
         <tr>
@@ -43,36 +44,69 @@
           <th>Ingreso</th>
         </tr>
       </thead>
-      <tbody>
-        <tr><th colspan="6" class="text-primary text-center">🚗 EN COLA</th></tr>
-        {% for item in en_cola %}
-        <tr>
-          <td>#</td>
-          <td><strong>{{ item.codigo_vehiculo }}</strong></td>
-          <td>{{ item.clasificacion }}</td>
-          <td class="status-en_cola">{{ item.estado }}</td>
-          <td>{{ item.asignado_a }}</td>
-          <td>{{ item.fecha }}</td>
-        </tr>
-        {% endfor %}
+      <tbody id="tabla-en_cola"></tbody>
+    </table>
 
-        <tr><th colspan="6" class="text-success text-center">🧼 EN PROGRESO</th></tr>
-        {% for item in en_progreso %}
+    <h4 class="mt-5">🧼 Vehículos en progreso</h4>
+    <table class="table table-striped table-hover bg-white shadow-sm rounded">
+      <thead class="table-warning">
         <tr>
-          <td>#</td>
-          <td><strong>{{ item.codigo_vehiculo }}</strong></td>
-          <td>{{ item.clasificacion }}</td>
-          <td class="status-en_progreso">{{ item.estado }}</td>
-          <td>{{ item.asignado_a }}</td>
-          <td>{{ item.fecha }}</td>
+          <th>#</th>
+          <th>Código Vehículo</th>
+          <th>Clasificación</th>
+          <th>Estado</th>
+          <th>Asignado a</th>
+          <th>Ingreso</th>
         </tr>
-        {% endfor %}
-      </tbody>
+      </thead>
+      <tbody id="tabla-en_progreso"></tbody>
     </table>
   </div>
 
   <footer>
-    &copy; {{ now.year }} XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
+    &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
   </footer>
+
+  <script>
+    async function cargarCola() {
+      try {
+        const response = await fetch("/api/cola_lavado");
+        const data = await response.json();
+
+        const tablaEnCola = document.getElementById("tabla-en_cola");
+        const tablaEnProgreso = document.getElementById("tabla-en_progreso");
+
+        tablaEnCola.innerHTML = "";
+        tablaEnProgreso.innerHTML = "";
+
+        let iCola = 1;
+        let iProgreso = 1;
+
+        data.forEach(item => {
+          const fila = document.createElement("tr");
+          fila.innerHTML = `
+            <td>${item.estado === "en_cola" && !item.asignado_a ? iCola++ : iProgreso++}</td>
+            <td><strong>${item.codigo_vehiculo}</strong></td>
+            <td>${item.clasificacion}</td>
+            <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
+            <td>${item.asignado_a || "-"}</td>
+            <td>${item.fecha}</td>
+          `;
+
+          if (item.estado === "en_cola" && (!item.asignado_a || item.asignado_a.trim() === "")) {
+            tablaEnCola.appendChild(fila);
+          } else {
+            tablaEnProgreso.appendChild(fila);
+          }
+        });
+      } catch (error) {
+        console.error("Error al cargar la cola:", error);
+      }
+    }
+
+    cargarCola();
+    setInterval(cargarCola, 30000);
+    document.getElementById("anio-actual").textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
