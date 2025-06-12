@@ -129,3 +129,20 @@ def verificar_disponibilidad(
         "en_cola": cola is not None,
         "estado": cola.estado if cola else "finalizado"
     }
+
+@router.get("/verificar/{codigo}")
+def verificar_estado(codigo: str, db: Session = Depends(get_db)):
+    codigo = codigo.strip().upper()
+    clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
+    cola = db.query(ColaLavado).filter(
+        ColaLavado.codigo_vehiculo == codigo,
+        ColaLavado.estado.in_(["en_cola", "en_progreso"])
+    ).first()
+
+    return {
+        "codigo": codigo,
+        "clasificado": bool(clasificado),
+        "cola": bool(cola),
+        "estado": cola.estado if cola else "N/A"
+    }
+
