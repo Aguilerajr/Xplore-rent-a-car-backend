@@ -19,23 +19,26 @@ def checkin(
     if activo:
         return {"error": "Ya tienes un check-in activo"}
 
-    # Verificar que el vehículo esté clasificado y en cola
+    # Verificar que el vehículo esté clasificado y en cola o en progreso
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
-    en_cola = db.query(ColaLavado).filter_by(codigo_vehiculo=codigo, estado="en_cola").first()
+    en_cola = db.query(ColaLavado).filter(
+        ColaLavado.codigo_vehiculo == codigo,
+        ColaLavado.estado.in_(["en_cola", "en_progreso"])
+    ).first()
     if not clasificacion or not en_cola:
-        return {"error": "Vehículo no disponible"}
+        return {"error": "Vehículo no clasificado o ya finalizado"}
 
     # Obtener nombre del empleado
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    # Convertir fecha de inicio (string -> datetime)
+    # Convertir fecha de inicio
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
         return {"error": f"Formato de fecha inválido: {str(e)}"}
 
-    # Crear nuevo registro de lavado
+    # Crear registro de lavado
     nuevo = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
@@ -85,8 +88,6 @@ def registrar_lavado(
     else:
         return {"error": "No hay check-in previo"}
 
-    # Marcar como completado
-    db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
     db.commit()
 
     # Si no quedan lavadores activos en ese vehículo, eliminar de cola y clasificación
