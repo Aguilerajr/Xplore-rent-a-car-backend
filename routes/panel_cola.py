@@ -9,6 +9,7 @@ from datetime import datetime
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
+
 @router.get("/panel_cola", response_class=HTMLResponse)
 def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
     cola = db.query(
@@ -41,6 +42,7 @@ def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
         "cola_lavado": cola_formateada,
         "now": datetime.now()
     })
+
 
 @router.get("/api/cola_lavado")
 def obtener_cola_lavado(db: Session = Depends(get_db)):

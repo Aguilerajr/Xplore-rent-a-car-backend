@@ -41,13 +41,13 @@ def checkin(
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    # Convertir fecha de inicio (string -> datetime)
+    # Convertir fecha
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
         return {"error": f"Formato de fecha inválido: {str(e)}"}
 
-    # Crear nuevo registro
+    # Crear registro de lavado
     nuevo = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
@@ -103,7 +103,7 @@ def registrar_lavado(
     registro.eficiencia = f"{eficiencia}%"
     db.commit()
 
-    # Verificar si ya no quedan empleados activos para ese vehículo
+    # Eliminar vehículo de cola y clasificaciones solo si ya nadie está lavando
     activos = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
