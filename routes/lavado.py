@@ -14,7 +14,7 @@ def checkin(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    codigo = codigo.strip().upper()  # 🔑 Normalizar código
+    codigo = codigo.strip().upper()
     empleado = empleado.strip()
 
     activo = db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first()
@@ -58,6 +58,7 @@ def checkin(
     db.commit()
 
     return {"status": "checkin exitoso"}
+
 
 @router.post("/registrar")
 def registrar_lavado(
@@ -110,12 +111,13 @@ def registrar_lavado(
 
     return {"status": "ok", "eficiencia": eficiencia}
 
+
 @router.post("/verificar_disponibilidad")
 def verificar_disponibilidad(
     codigo: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    codigo = codigo.strip().upper()  # 🔑 Normalizar código aquí también
+    codigo = codigo.strip().upper()
 
     clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
     cola = db.query(ColaLavado).filter(
@@ -129,6 +131,7 @@ def verificar_disponibilidad(
         "en_cola": cola is not None,
         "estado": cola.estado if cola else "finalizado"
     }
+
 
 @router.get("/verificar/{codigo}")
 def verificar_estado(codigo: str, db: Session = Depends(get_db)):
@@ -145,4 +148,3 @@ def verificar_estado(codigo: str, db: Session = Depends(get_db)):
         "cola": bool(cola),
         "estado": cola.estado if cola else "N/A"
     }
-
