@@ -13,9 +13,8 @@
     .refresh-btn { font-size: 1.2rem; color: white; background: transparent; border: none; }
     .table-container { margin: 20px auto; max-width: 90%; }
     .table th, .table td { vertical-align: middle; }
-    .status-EN::before { content: "⏳ "; }
-    .status-PRO::before { content: "🧼 "; }
-    .status-OK::before { content: "✅ "; }
+    .status-en_cola::before { content: "⏳ "; }
+    .status-en_progreso::before { content: "🧼 "; }
     footer { text-align: center; padding: 10px 0; color: #aaa; }
   </style>
 </head>
@@ -25,9 +24,11 @@
       <img src="/static/logo_xplore.png" alt="Xplore Logo">
       <span>XPLORE - Cola de Lavado (Tiempo Real)</span>
     </div>
-    <button class="refresh-btn" onclick="cargarCola()" title="Refrescar ahora">
-      <i class="bi bi-arrow-clockwise"></i>
-    </button>
+    <form method="get" action="/panel_cola">
+      <button class="refresh-btn" title="Refrescar ahora">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </form>
   </nav>
 
   <div class="table-container">
@@ -42,49 +43,36 @@
           <th>Ingreso</th>
         </tr>
       </thead>
-      <tbody id="tabla-body">
-        <!-- Se rellenará con JavaScript -->
+      <tbody>
+        <tr><th colspan="6" class="text-primary text-center">🚗 EN COLA</th></tr>
+        {% for item in en_cola %}
+        <tr>
+          <td>#</td>
+          <td><strong>{{ item.codigo_vehiculo }}</strong></td>
+          <td>{{ item.clasificacion }}</td>
+          <td class="status-en_cola">{{ item.estado }}</td>
+          <td>{{ item.asignado_a }}</td>
+          <td>{{ item.fecha }}</td>
+        </tr>
+        {% endfor %}
+
+        <tr><th colspan="6" class="text-success text-center">🧼 EN PROGRESO</th></tr>
+        {% for item in en_progreso %}
+        <tr>
+          <td>#</td>
+          <td><strong>{{ item.codigo_vehiculo }}</strong></td>
+          <td>{{ item.clasificacion }}</td>
+          <td class="status-en_progreso">{{ item.estado }}</td>
+          <td>{{ item.asignado_a }}</td>
+          <td>{{ item.fecha }}</td>
+        </tr>
+        {% endfor %}
       </tbody>
     </table>
   </div>
 
   <footer>
-    &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
+    &copy; {{ now.year }} XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
   </footer>
-
-  <script>
-    async function cargarCola() {
-      try {
-        const response = await fetch("/api/cola_lavado");
-        const data = await response.json();
-        const tbody = document.getElementById("tabla-body");
-        tbody.innerHTML = "";
-
-        data.forEach((item, index) => {
-          const fila = document.createElement("tr");
-          fila.innerHTML = `
-            <td>${index + 1}</td>
-            <td><strong>${item.codigo_vehiculo}</strong></td>
-            <td>${item.clasificacion}</td>
-            <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
-            <td>${item.asignado_a}</td>
-            <td>${item.fecha}</td>
-          `;
-          tbody.appendChild(fila);
-        });
-      } catch (error) {
-        console.error("Error al cargar la cola:", error);
-      }
-    }
-
-    // Cargar una vez al inicio
-    cargarCola();
-
-    // Cargar cada 30 segundos
-    setInterval(cargarCola, 30000);
-
-    // Mostrar año actual
-    document.getElementById("anio-actual").textContent = new Date().getFullYear();
-  </script>
 </body>
 </html>
