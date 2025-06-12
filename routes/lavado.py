@@ -116,3 +116,22 @@ def registrar_lavado(
         db.commit()
 
     return {"status": "ok", "eficiencia": eficiencia}
+
+
+@router.post("/verificar_disponibilidad")
+def verificar_disponibilidad(
+    codigo: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    # Verificar si está clasificado
+    clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
+    if not clasificado:
+        return {"disponible": False}
+
+    # Verificar si está en cola o en progreso
+    cola = db.query(ColaLavado).filter(
+        ColaLavado.codigo_vehiculo == codigo,
+        ColaLavado.estado.in_(["en_cola", "en_progreso"])
+    ).first()
+
+    return {"disponible": bool(cola)}
