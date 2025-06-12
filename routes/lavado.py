@@ -19,13 +19,14 @@ def checkin(
     if activo:
         return {"error": "Ya tienes un check-in activo"}
 
-    # Verificar que el vehículo esté clasificado y en cola o en progreso
+    # Verificar que el vehículo esté clasificado y activo en la cola
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
-    en_cola = db.query(ColaLavado).filter(
+    cola = db.query(ColaLavado).filter(
         ColaLavado.codigo_vehiculo == codigo,
         ColaLavado.estado.in_(["en_cola", "en_progreso"])
     ).first()
-    if not clasificacion or not en_cola:
+
+    if not clasificacion or not cola:
         return {"error": "Vehículo no clasificado o ya finalizado"}
 
     # Obtener nombre del empleado
@@ -38,7 +39,7 @@ def checkin(
     except Exception as e:
         return {"error": f"Formato de fecha inválido: {str(e)}"}
 
-    # Crear registro de lavado
+    # Crear nuevo registro de lavado
     nuevo = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
@@ -50,6 +51,11 @@ def checkin(
         eficiencia="0%"
     )
     db.add(nuevo)
+
+    # Cambiar estado a en_progreso si aún estaba en cola
+    if cola.estado == "en_cola":
+        cola.estado = "en_progreso"
+
     db.commit()
 
     return {"status": "checkin exitoso"}
@@ -90,7 +96,7 @@ def registrar_lavado(
 
     db.commit()
 
-    # Si no quedan lavadores activos en ese vehículo, eliminar de cola y clasificación
+    # Si no quedan lavadores activos, eliminar vehículo de cola y clasificación
     activos = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
