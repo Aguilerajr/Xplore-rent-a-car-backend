@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte Semanal</title>
+    <link rel="icon" href="/static/icon.png" type="image/png">
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+        }
+
+        .navbar {
+            background-color: #0066b2;
+            color: #fff;
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            background-color: #004c87;
+            padding: 8px 16px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .navbar a:hover {
+            background-color: #003c70;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 60px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        input[type="date"], button {
+            padding: 10px;
+            font-size: 16px;
+            margin: 15px 0;
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #0066b2;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #004c87;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <span>Reporte Semanal</span>
+        <a href="/">Volver al Lobby</a>
+    </div>
+
+    <div class="container">
+        <h2>Generar Reporte de Lavado</h2>
+        <form method="post" action="/reporte_semanal">
+            <label for="semana">Selecciona el lunes de la semana:</label><br>
+            <input type="date" id="semana" name="semana" required><br>
+            <button type="submit">Generar Reporte</button>
+            {% if error %}
+                <div class="error">{{ error }}</div>
+            {% endif %}
+        </form>
+    </div>
+</body>
+</html>
