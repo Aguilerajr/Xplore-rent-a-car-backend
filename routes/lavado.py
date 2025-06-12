@@ -30,7 +30,7 @@ def checkin(
         ColaLavado.estado.in_(["en_cola", "en_progreso"])
     ).first()
     if not cola:
-        return {"error": "Vehículo ya fue finalizado"}
+        return {"error": "Vehículo ya fue finalizado o no está en cola"}
 
     # Si está en cola, cambiar a en_progreso
     if cola.estado == "en_cola":
@@ -41,7 +41,7 @@ def checkin(
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    # Convertir fecha
+    # Convertir fecha de inicio
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
