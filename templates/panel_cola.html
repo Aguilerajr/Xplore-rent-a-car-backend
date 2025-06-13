@@ -11,12 +11,13 @@
     .nav-brand { background-color: #0066b2; padding: 15px; color: white; font-size: 1.5rem; display: flex; align-items: center; justify-content: space-between; }
     .nav-brand img { height: 40px; margin-right: 10px; }
     .refresh-btn { font-size: 1.2rem; color: white; background: transparent; border: none; }
-    .table-container { margin: 20px auto; max-width: 90%; }
+    .table-container { margin: 20px auto; max-width: 95%; }
     .table th, .table td { vertical-align: middle; }
     .status-EN::before { content: "⏳ "; }
     .status-PRO::before { content: "🧼 "; }
     .status-OK::before { content: "✅ "; }
     footer { text-align: center; padding: 10px 0; color: #aaa; }
+    h3 { margin-top: 40px; margin-bottom: 20px; color: #0066b2; }
   </style>
 </head>
 <body>
@@ -31,6 +32,7 @@
   </nav>
 
   <div class="table-container">
+    <h3>⏳ Vehículos en Cola</h3>
     <table class="table table-striped table-hover bg-white shadow-sm rounded">
       <thead class="table-primary">
         <tr>
@@ -42,14 +44,31 @@
           <th>Ingreso</th>
         </tr>
       </thead>
-      <tbody id="tabla-body">
+      <tbody id="tabla-en-cola">
+        <!-- Se rellenará con JavaScript -->
+      </tbody>
+    </table>
+
+    <h3>🧼 Vehículos en Proceso</h3>
+    <table class="table table-striped table-hover bg-white shadow-sm rounded">
+      <thead class="table-success">
+        <tr>
+          <th>#</th>
+          <th>Código Vehículo</th>
+          <th>Clasificación</th>
+          <th>Estado</th>
+          <th>Asignado a</th>
+          <th>Ingreso</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-en-proceso">
         <!-- Se rellenará con JavaScript -->
       </tbody>
     </table>
   </div>
 
   <footer>
-    &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Pantalla informativa actualizable
+    &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Panel en tiempo real
   </footer>
 
   <script>
@@ -57,10 +76,13 @@
       try {
         const response = await fetch("/api/cola_lavado");
         const data = await response.json();
-        const tbody = document.getElementById("tabla-body");
-        tbody.innerHTML = "";
 
-        data.forEach((item, index) => {
+        const tbodyCola = document.getElementById("tabla-en-cola");
+        const tbodyProceso = document.getElementById("tabla-en-proceso");
+        tbodyCola.innerHTML = "";
+        tbodyProceso.innerHTML = "";
+
+        data.en_cola.forEach((item, index) => {
           const fila = document.createElement("tr");
           fila.innerHTML = `
             <td>${index + 1}</td>
@@ -70,20 +92,29 @@
             <td>${item.asignado_a}</td>
             <td>${item.fecha}</td>
           `;
-          tbody.appendChild(fila);
+          tbodyCola.appendChild(fila);
         });
+
+        data.en_proceso.forEach((item, index) => {
+          const fila = document.createElement("tr");
+          fila.innerHTML = `
+            <td>${index + 1}</td>
+            <td><strong>${item.codigo_vehiculo}</strong></td>
+            <td>${item.clasificacion}</td>
+            <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
+            <td>${item.asignado_a}</td>
+            <td>${item.fecha}</td>
+          `;
+          tbodyProceso.appendChild(fila);
+        });
+
       } catch (error) {
         console.error("Error al cargar la cola:", error);
       }
     }
 
-    // Cargar una vez al inicio
     cargarCola();
-
-    // Cargar cada 30 segundos
     setInterval(cargarCola, 30000);
-
-    // Mostrar año actual
     document.getElementById("anio-actual").textContent = new Date().getFullYear();
   </script>
 </body>

@@ -11,50 +11,63 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/panel_cola", response_class=HTMLResponse)
 def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
-    # Traer cola con descripción desde la tabla clasificaciones
-    cola = db.query(
+    cola_en_cola = db.query(
         ColaLavado,
         Clasificacion.clasificacion.label("clasificacion_detalle")
     ).join(
         Clasificacion, Clasificacion.codigo == ColaLavado.codigo_vehiculo
-    ).order_by(ColaLavado.fecha).all()
+    ).filter(ColaLavado.estado == "en_cola").order_by(ColaLavado.fecha).all()
 
-    # Preparar datos combinados para la plantilla
-    cola_formateada = []
-    for cl, detalle in cola:
-        cola_formateada.append({
+    cola_en_proceso = db.query(
+        ColaLavado,
+        Clasificacion.clasificacion.label("clasificacion_detalle")
+    ).join(
+        Clasificacion, Clasificacion.codigo == ColaLavado.codigo_vehiculo
+    ).filter(ColaLavado.estado == "en_proceso").order_by(ColaLavado.fecha).all()
+
+    def formatear(cola):
+        return [{
             "codigo_vehiculo": cl.codigo_vehiculo,
             "estado": cl.estado,
             "asignado_a": cl.asignado_a,
             "fecha": cl.fecha,
-            "clasificacion": detalle  # ejemplo: "D2"
-        })
+            "clasificacion": detalle
+        } for cl, detalle in cola]
 
     return templates.TemplateResponse("panel_cola.html", {
         "request": request,
-        "cola_lavado": cola_formateada,
+        "cola_en_cola": formatear(cola_en_cola),
+        "cola_en_proceso": formatear(cola_en_proceso),
         "now": datetime.now()
     })
 
 
-# NUEVA RUTA API para recarga automática desde el frontend
 @router.get("/api/cola_lavado")
 def obtener_cola_lavado(db: Session = Depends(get_db)):
-    cola = db.query(
+    cola_en_cola = db.query(
         ColaLavado,
         Clasificacion.clasificacion.label("clasificacion_detalle")
     ).join(
         Clasificacion, Clasificacion.codigo == ColaLavado.codigo_vehiculo
-    ).order_by(ColaLavado.fecha).all()
+    ).filter(ColaLavado.estado == "en_cola").order_by(ColaLavado.fecha).all()
 
-    datos = []
-    for cl, detalle in cola:
-        datos.append({
+    cola_en_proceso = db.query(
+        ColaLavado,
+        Clasificacion.clasificacion.label("clasificacion_detalle")
+    ).join(
+        Clasificacion, Clasificacion.codigo == ColaLavado.codigo_vehiculo
+    ).filter(ColaLavado.estado == "en_proceso").order_by(ColaLavado.fecha).all()
+
+    def serializar(cola):
+        return [{
             "codigo_vehiculo": cl.codigo_vehiculo,
             "estado": cl.estado,
             "asignado_a": cl.asignado_a or "-",
             "fecha": cl.fecha.strftime("%Y-%m-%d %H:%M:%S"),
             "clasificacion": detalle
-        })
+        } for cl, detalle in cola]
 
-    return JSONResponse(content=datos)
+    return JSONResponse(content={
+        "en_cola": serializar(cola_en_cola),
+        "en_proceso": serializar(cola_en_proceso)
+    })
