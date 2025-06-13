@@ -135,7 +135,11 @@
             <td><strong>${item.codigo_vehiculo}</strong></td>
             <td>${item.clasificacion}</td>
             <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
-            <td>${item.asignado_a}</td>
+            <td>
+              <ul class="mb-0 ps-3">
+                ${item.asignado_a.map(nombre => `<li>${nombre}</li>`).join("")}
+              </ul>
+            </td>
             <td>${item.fecha}</td>
           `;
           tbodyCola.appendChild(fila);
@@ -148,7 +152,11 @@
             <td><strong>${item.codigo_vehiculo}</strong></td>
             <td>${item.clasificacion}</td>
             <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
-            <td>${item.asignado_a}</td>
+            <td>
+              <ul class="mb-0 ps-3">
+                ${item.asignado_a.map(nombre => `<li>${nombre}</li>`).join("")}
+              </ul>
+            </td>
             <td>${item.fecha}</td>
           `;
           tbodyProceso.appendChild(fila);
