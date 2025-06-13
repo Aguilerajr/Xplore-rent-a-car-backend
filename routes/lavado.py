@@ -6,28 +6,19 @@ from datetime import datetime
 
 router = APIRouter()
 
-# ✅ Verificar si un vehículo está disponible
+# ✅ Verificar si un vehículo está disponible (clasificado o en proceso)
 @router.get("/verificar_disponibilidad")
 def verificar_disponibilidad(codigo: str = Query(...), db: Session = Depends(get_db)):
-    # Revisar si está clasificado
     clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
-
-    # Revisar si está en cola o en proceso
     en_cola = db.query(ColaLavado).filter(
         ColaLavado.codigo_vehiculo == codigo,
         ColaLavado.estado.in_(["en_cola", "en_proceso"])
     ).first()
-
-    # Revisar si tiene un registro de lavado activo (check-in sin check-out)
     en_lavado = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == codigo,
         RegistroLavado.fin.is_(None)
     ).first()
-
-    # Si cumple alguna de estas, está disponible para la app
     return {"disponible": bool(clasificado or en_cola or en_lavado)}
-
-
 
 
 # ✅ Check-in del lavador
@@ -39,30 +30,31 @@ def checkin(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    # Validar check-in activo
+    # Validar si el empleado ya tiene un check-in activo
     if db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first():
         return {"error": "Ya tienes un check-in activo"}
 
-    # Verificar clasificación y cola
+    # Validar vehículo clasificado y en cola o en proceso
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     en_cola = db.query(ColaLavado).filter(
         ColaLavado.codigo_vehiculo == codigo,
         ColaLavado.estado.in_(["en_cola", "en_proceso"])
     ).first()
+
     if not clasificacion or not en_cola:
         return {"error": "Vehículo no clasificado o ya finalizado"}
 
-    # Parsear fecha
+    # Convertir fecha
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
         return {"error": f"Formato inválido de fecha: {e}"}
 
-    # Obtener nombre
+    # Obtener nombre del empleado
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    # Crear registro
+    # Crear registro de lavado
     registro = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
@@ -75,7 +67,7 @@ def checkin(
     )
     db.add(registro)
 
-    # Marcar en_proceso si estaba en_cola
+    # Cambiar estado a en_proceso si estaba en_cola
     if en_cola.estado == "en_cola":
         en_cola.estado = "en_proceso"
 
@@ -83,7 +75,7 @@ def checkin(
     return {"status": "checkin exitoso"}
 
 
-# ✅ Registrar el lavado (check-out)
+# ✅ Check-out del lavador
 @router.post("/registrar")
 def registrar_lavado(
     codigo: str = Form(...),
@@ -99,11 +91,10 @@ def registrar_lavado(
     except Exception as e:
         return {"error": f"Error en formato de fecha: {str(e)}"}
 
-    # Buscar registro activo (ignora el valor de fin)
     registro = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == codigo,
         RegistroLavado.empleado == empleado,
-        RegistroLavado.fin.is_(None)  # <-- Aquí usamos is_(None)
+        RegistroLavado.fin.is_(None)
     ).first()
 
     if not registro:
@@ -115,27 +106,23 @@ def registrar_lavado(
 
     tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
     eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-    emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
-    nombre = emp.nombre if emp else "Desconocido"
 
-    # Actualizar el registro
     registro.fin = fin_dt
     registro.tiempo_real = tiempo_real
     registro.eficiencia = f"{eficiencia}%"
 
-    # Marcar como completado
-    db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
-    db.commit()
+    db.commit()  # ✅ Guardar primero el registro actualizado
 
-    # Eliminar si ya no hay lavadores activos
+    # Verificar si hay más lavadores activos
     activos = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == codigo,
         RegistroLavado.fin.is_(None)
     ).count()
 
+    # Si ya nadie más está lavando este vehículo, eliminar de las tablas
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
         db.query(Clasificacion).filter_by(codigo=codigo).delete()
+        db.commit()
 
-    db.commit()
     return {"status": "ok", "eficiencia": eficiencia}
