@@ -86,38 +86,43 @@ def registrar_lavado(
     except Exception as e:
         return {"error": f"Error en formato de fecha: {str(e)}"}
 
-    tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
+    # Buscar registro activo (ignora el valor de fin)
+    registro = db.query(RegistroLavado).filter(
+        RegistroLavado.vehiculo == codigo,
+        RegistroLavado.empleado == empleado,
+        RegistroLavado.fin.is_(None)  # <-- Aquí usamos is_(None)
+    ).first()
+
+    if not registro:
+        return {"error": "No hay check-in previo"}
 
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     if not clasificacion:
         return {"error": "Vehículo no clasificado"}
 
-    registro = db.query(RegistroLavado).filter_by(
-        vehiculo=codigo, empleado=empleado, fin=None
-    ).first()
-
-    if not registro:
-        return {"error": "No se encontró un check-in activo para este empleado y vehículo"}
-
+    tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
+    eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-
-    # Actualiza el registro
+    # Actualizar el registro
     registro.fin = fin_dt
     registro.tiempo_real = tiempo_real
     registro.eficiencia = f"{eficiencia}%"
-    registro.nombre_empleado = nombre
 
+    # Marcar como completado
     db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
     db.commit()
 
-    # Eliminar si ya no hay nadie más lavando
-    restantes = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
-    if restantes == 0:
+    # Eliminar si ya no hay lavadores activos
+    activos = db.query(RegistroLavado).filter(
+        RegistroLavado.vehiculo == codigo,
+        RegistroLavado.fin.is_(None)
+    ).count()
+
+    if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
         db.query(Clasificacion).filter_by(codigo=codigo).delete()
-        db.commit()
 
+    db.commit()
     return {"status": "ok", "eficiencia": eficiencia}
