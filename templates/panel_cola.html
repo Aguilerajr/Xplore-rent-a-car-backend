@@ -11,33 +11,40 @@
       background-color: #f4f4f4;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
-    .nav-brand {
+
+    .header-xplore {
       background-color: #0066b2;
-      padding: 15px;
       color: white;
-      font-size: 1.5rem;
+      padding: 10px 30px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
-    .nav-brand img { height: 40px; margin-right: 10px; }
-    .refresh-btn {
-      font-size: 1.2rem;
-      color: white;
-      background: transparent;
-      border: none;
+
+    .header-xplore h2 {
+      margin: 0;
+      font-size: 1.5rem;
     }
+
+    .header-xplore img {
+      height: 50px;
+      cursor: pointer;
+    }
+
     .table th, .table td {
       vertical-align: middle;
     }
+
     footer {
       text-align: center;
       padding: 10px 0;
       color: #aaa;
     }
+
     .status-EN::before { content: "⏳ "; }
     .status-PRO::before { content: "🧼 "; }
     .status-OK::before { content: "✅ "; }
+
     h4 {
       margin-bottom: 15px;
       color: #0066b2;
@@ -45,9 +52,11 @@
       align-items: center;
       gap: 8px;
     }
+
     .panel {
       padding: 20px;
     }
+
     @media (min-width: 768px) {
       .panel-container {
         display: flex;
@@ -58,118 +67,118 @@
         flex: 1;
       }
     }
+
+    .refresh-btn {
+      font-size: 1.2rem;
+      color: white;
+      background: transparent;
+      border: none;
+    }
   </style>
 </head>
 <body>
-<nav class="navbar">
-    <a href="/" class="navbar-brand">
-        <img src="/static/logo_xplore.png" alt="Xplore Logo">
-    </a>
-      <span>XPLORE - Cola de Lavado (Tiempo Real)</span>
+
+<!-- Cabecera profesional -->
+<div class="header-xplore">
+  <h2>XPLORE - Cola de Lavado (Tiempo Real)</h2>
+  <a href="/"><img src="/static/logo_xplore.png" alt="Logo Xplore"></a>
+</div>
+
+<div class="container-fluid mt-3">
+  <div class="panel-container">
+    <div class="panel bg-white shadow-sm rounded">
+      <h4><i class="bi bi-hourglass-split"></i> Vehículos en Cola</h4>
+      <table class="table table-striped table-hover">
+        <thead class="table-primary">
+          <tr>
+            <th>#</th>
+            <th>Código Vehículo</th>
+            <th>Clasificación</th>
+            <th>Estado</th>
+            <th>Asignado a</th>
+            <th>Ingreso</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-en-cola"></tbody>
+      </table>
     </div>
-    <button class="refresh-btn" onclick="cargarCola()" title="Refrescar ahora">
-      <i class="bi bi-arrow-clockwise"></i>
-    </button>
-  </nav>
 
-  <div class="container-fluid mt-3">
-    <div class="panel-container">
-      <div class="panel bg-white shadow-sm rounded">
-        <h4><i class="bi bi-hourglass-split"></i> Vehículos en Cola</h4>
-        <table class="table table-striped table-hover">
-          <thead class="table-primary">
-            <tr>
-              <th>#</th>
-              <th>Código Vehículo</th>
-              <th>Clasificación</th>
-              <th>Estado</th>
-              <th>Asignado a</th>
-              <th>Ingreso</th>
-            </tr>
-          </thead>
-          <tbody id="tabla-en-cola">
-            <!-- JS -->
-          </tbody>
-        </table>
-      </div>
-
-      <div class="panel bg-white shadow-sm rounded">
-        <h4><i class="bi bi-bucket"></i> Vehículos en Proceso</h4>
-        <table class="table table-striped table-hover">
-          <thead class="table-success">
-            <tr>
-              <th>#</th>
-              <th>Código Vehículo</th>
-              <th>Clasificación</th>
-              <th>Estado</th>
-              <th>Asignado a</th>
-              <th>Ingreso</th>
-            </tr>
-          </thead>
-          <tbody id="tabla-en-proceso">
-            <!-- JS -->
-          </tbody>
-        </table>
-      </div>
+    <div class="panel bg-white shadow-sm rounded">
+      <h4><i class="bi bi-bucket"></i> Vehículos en Proceso</h4>
+      <table class="table table-striped table-hover">
+        <thead class="table-success">
+          <tr>
+            <th>#</th>
+            <th>Código Vehículo</th>
+            <th>Clasificación</th>
+            <th>Estado</th>
+            <th>Asignado a</th>
+            <th>Ingreso</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-en-proceso"></tbody>
+      </table>
     </div>
   </div>
+</div>
 
-  <footer>
-    &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Panel en tiempo real
-  </footer>
+<footer>
+  &copy; <span id="anio-actual"></span> XPLORE Rent a Car &nbsp;·&nbsp; Panel en tiempo real
+</footer>
 
-  <script>
-    async function cargarCola() {
-      try {
-        const response = await fetch("/api/cola_lavado");
-        const data = await response.json();
+<script>
+  async function cargarCola() {
+    try {
+      const response = await fetch("/api/cola_lavado");
+      const data = await response.json();
 
-        const tbodyCola = document.getElementById("tabla-en-cola");
-        const tbodyProceso = document.getElementById("tabla-en-proceso");
-        tbodyCola.innerHTML = "";
-        tbodyProceso.innerHTML = "";
+      const tbodyCola = document.getElementById("tabla-en-cola");
+      const tbodyProceso = document.getElementById("tabla-en-proceso");
+      tbodyCola.innerHTML = "";
+      tbodyProceso.innerHTML = "";
 
-        data.en_cola.forEach((item, index) => {
-          const fila = document.createElement("tr");
-          fila.innerHTML = `
-            <td>${index + 1}</td>
-            <td><strong>${item.codigo_vehiculo}</strong></td>
-            <td>${item.clasificacion}</td>
-            <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
-            <td>
-              <ul class="mb-0 ps-3">
-                ${item.asignado_a.map(nombre => `<li>${nombre}</li>`).join("")}
-              </ul>
-            </td>
-            <td>${item.fecha}</td>
-          `;
-          tbodyCola.appendChild(fila);
-        });
+      data.en_cola.forEach((item, index) => {
+        const fila = document.createElement("tr");
+        fila.innerHTML = `
+          <td>${index + 1}</td>
+          <td><strong>${item.codigo_vehiculo}</strong></td>
+          <td>${item.clasificacion}</td>
+          <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
+          <td>
+            <ul class="mb-0 ps-3">
+              ${item.asignado_a.map(nombre => `<li>${nombre}</li>`).join("")}
+            </ul>
+          </td>
+          <td>${item.fecha}</td>
+        `;
+        tbodyCola.appendChild(fila);
+      });
 
-        data.en_proceso.forEach((item, index) => {
-          const fila = document.createElement("tr");
-          fila.innerHTML = `
-            <td>${index + 1}</td>
-            <td><strong>${item.codigo_vehiculo}</strong></td>
-            <td>${item.clasificacion}</td>
-            <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
-            <td>
-              <ul class="mb-0 ps-3">
-                ${item.asignado_a.map(nombre => `<li>${nombre}</li>`).join("")}
-              </ul>
-            </td>
-            <td>${item.fecha}</td>
-          `;
-          tbodyProceso.appendChild(fila);
-        });
-      } catch (error) {
-        console.error("Error al cargar la cola:", error);
-      }
+      data.en_proceso.forEach((item, index) => {
+        const fila = document.createElement("tr");
+        fila.innerHTML = `
+          <td>${index + 1}</td>
+          <td><strong>${item.codigo_vehiculo}</strong></td>
+          <td>${item.clasificacion}</td>
+          <td class="status-${item.estado.toUpperCase()}">${item.estado}</td>
+          <td>
+            <ul class="mb-0 ps-3">
+              ${item.asignado_a.map(nombre => `<li>${nombre}</li>`).join("")}
+            </ul>
+          </td>
+          <td>${item.fecha}</td>
+        `;
+        tbodyProceso.appendChild(fila);
+      });
+    } catch (error) {
+      console.error("Error al cargar la cola:", error);
     }
+  }
 
-    cargarCola();
-    setInterval(cargarCola, 30000);
-    document.getElementById("anio-actual").textContent = new Date().getFullYear();
-  </script>
+  cargarCola();
+  setInterval(cargarCola, 30000);
+  document.getElementById("anio-actual").textContent = new Date().getFullYear();
+</script>
+
 </body>
 </html>

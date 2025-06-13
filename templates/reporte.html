@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Reporte Semanal</title>
     <link rel="icon" href="/static/icon.png" type="image/png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -11,28 +12,23 @@
             background-color: #f4f4f4;
         }
 
-        .navbar {
+        .header-xplore {
             background-color: #0066b2;
-            color: #fff;
+            color: white;
             padding: 15px 30px;
-            font-size: 20px;
-            font-weight: bold;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .navbar a {
-            color: white;
-            text-decoration: none;
-            background-color: #004c87;
-            padding: 8px 16px;
-            border-radius: 5px;
-            font-size: 14px;
+        .header-xplore h2 {
+            margin: 0;
+            font-size: 1.5rem;
         }
 
-        .navbar a:hover {
-            background-color: #003c70;
+        .header-xplore img {
+            height: 50px;
+            cursor: pointer;
         }
 
         .container {
@@ -73,21 +69,24 @@
     </style>
 </head>
 <body>
-    <div class="navbar">
-        <span>Reporte Semanal</span>
-        <a href="/">Volver al Lobby</a>
-    </div>
 
-    <div class="container">
-        <h2>Generar Reporte de Lavado</h2>
-        <form method="post" action="/reporte_semanal">
-            <label for="semana">Selecciona el lunes de la semana:</label><br>
-            <input type="date" id="semana" name="semana" required><br>
-            <button type="submit">Generar Reporte</button>
-            {% if error %}
-                <div class="error">{{ error }}</div>
-            {% endif %}
-        </form>
-    </div>
+<!-- Cabecera profesional -->
+<div class="header-xplore">
+    <h2>Reporte Semanal</h2>
+    <a href="/"><img src="/static/logo_xplore.png" alt="Logo Xplore"></a>
+</div>
+
+<div class="container">
+    <h2>Generar Reporte de Lavado</h2>
+    <form method="post" action="/reporte_semanal">
+        <label for="semana">Selecciona el lunes de la semana:</label><br>
+        <input type="date" id="semana" name="semana" required><br>
+        <button type="submit">Generar Reporte</button>
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+    </form>
+</div>
+
 </body>
 </html>
