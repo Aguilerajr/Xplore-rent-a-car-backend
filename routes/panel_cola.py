@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from database import get_db
-from models import ColaLavado, Clasificacion
+from database import get_db, get_db_empleados
+from models import ColaLavado, Clasificacion, Empleado
 from datetime import datetime
 
 router = APIRouter()
@@ -43,7 +43,20 @@ def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/api/cola_lavado")
-def obtener_cola_lavado(db: Session = Depends(get_db)):
+def obtener_cola_lavado(
+    db: Session = Depends(get_db),
+    db_emp: Session = Depends(get_db_empleados)
+):
+    def obtener_nombres(asignados_raw: str) -> list:
+        if not asignados_raw:
+            return []
+        codigos = [c.strip() for c in asignados_raw.split(",") if c.strip()]
+        nombres = []
+        for cod in codigos:
+            emp = db_emp.query(Empleado).filter_by(codigo=cod).first()
+            nombres.append(f"{cod} - {emp.nombre}" if emp else cod)
+        return nombres
+
     cola_en_cola = db.query(
         ColaLavado,
         Clasificacion.clasificacion.label("clasificacion_detalle")
@@ -62,7 +75,7 @@ def obtener_cola_lavado(db: Session = Depends(get_db)):
         return [{
             "codigo_vehiculo": cl.codigo_vehiculo,
             "estado": cl.estado,
-            "asignado_a": cl.asignado_a or "-",
+            "asignado_a": obtener_nombres(cl.asignado_a),
             "fecha": cl.fecha.strftime("%Y-%m-%d %H:%M:%S"),
             "clasificacion": detalle
         } for cl, detalle in cola]
