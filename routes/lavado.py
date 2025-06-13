@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Form, Depends, Query
+from fastapi import APIRouter, Form, Query, Depends
 from sqlalchemy.orm import Session
 from database import get_db, get_db_empleados
 from models import Clasificacion, ColaLavado, RegistroLavado, Empleado
 from datetime import datetime
 
 router = APIRouter()
+
+# ✅ Verificar si un vehículo está disponible
 @router.get("/verificar_disponibilidad")
 def verificar_disponibilidad(codigo: str = Query(...), db: Session = Depends(get_db)):
     clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
@@ -14,6 +16,8 @@ def verificar_disponibilidad(codigo: str = Query(...), db: Session = Depends(get
     ).first()
     return {"disponible": bool(clasificado and en_cola)}
 
+
+# ✅ Check-in del lavador
 @router.post("/checkin")
 def checkin(
     codigo: str = Form(...),
@@ -22,32 +26,31 @@ def checkin(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    # Revisar si el empleado ya tiene un check-in activo
-    activo = db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first()
-    if activo:
+    # Validar check-in activo
+    if db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first():
         return {"error": "Ya tienes un check-in activo"}
 
-    # Verificar que el vehículo esté clasificado y en cola o en proceso
+    # Verificar clasificación y cola
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     en_cola = db.query(ColaLavado).filter(
         ColaLavado.codigo_vehiculo == codigo,
         ColaLavado.estado.in_(["en_cola", "en_proceso"])
     ).first()
     if not clasificacion or not en_cola:
-        return {"error": "Vehículo no disponible"}
+        return {"error": "Vehículo no clasificado o ya finalizado"}
 
-    # Obtener nombre del empleado
-    emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
-    nombre = emp.nombre if emp else "Desconocido"
-
-    # Convertir fecha de inicio (string -> datetime)
+    # Parsear fecha
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
-        return {"error": f"Formato de fecha inválido: {str(e)}"}
+        return {"error": f"Formato inválido de fecha: {e}"}
 
-    # Crear nuevo registro de lavado
-    nuevo = RegistroLavado(
+    # Obtener nombre
+    emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
+    nombre = emp.nombre if emp else "Desconocido"
+
+    # Crear registro
+    registro = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
         nombre_empleado=nombre,
@@ -57,9 +60,9 @@ def checkin(
         tiempo_estimado=clasificacion.tiempo_estimado,
         eficiencia="0%"
     )
-    db.add(nuevo)
+    db.add(registro)
 
-    # Cambiar estado de en_cola a en_proceso si aplica
+    # Marcar en_proceso si estaba en_cola
     if en_cola.estado == "en_cola":
         en_cola.estado = "en_proceso"
 
@@ -67,6 +70,7 @@ def checkin(
     return {"status": "checkin exitoso"}
 
 
+# ✅ Registrar el lavado (check-out)
 @router.post("/registrar")
 def registrar_lavado(
     codigo: str = Form(...),
@@ -80,31 +84,30 @@ def registrar_lavado(
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
         fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
-        return {"error": f"Error en formato de fecha: {str(e)}"}
+        return {"error": f"Error en formato de fecha: {e}"}
 
-    tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
+    tiempo_real = max(1, int((fin_dt - inicio_dt).total_seconds() / 60))  # evita división por 0
 
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     if not clasificacion:
         return {"error": "No clasificado"}
 
-    eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
+    eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1)
+
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
     registro = db.query(RegistroLavado).filter_by(vehiculo=codigo, empleado=empleado, fin=None).first()
-    if registro:
-        registro.fin = fin_dt
-        registro.tiempo_real = tiempo_real
-        registro.eficiencia = f"{eficiencia}%"
-    else:
+    if not registro:
         return {"error": "No hay check-in previo"}
 
-    # Marcar como completado
-    db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).update({"estado": "completado"})
+    registro.fin = fin_dt
+    registro.tiempo_real = tiempo_real
+    registro.eficiencia = f"{eficiencia}%"
+
     db.commit()
 
-    # Si no quedan lavadores activos en ese vehículo, eliminar de cola y clasificación
+    # Verificar si hay más lavadores activos
     activos = db.query(RegistroLavado).filter_by(vehiculo=codigo, fin=None).count()
     if activos == 0:
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
