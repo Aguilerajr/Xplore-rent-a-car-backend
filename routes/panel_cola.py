@@ -54,7 +54,10 @@ def obtener_cola_lavado(
         nombres = []
         for cod in codigos:
             emp = db_emp.query(Empleado).filter_by(codigo=cod).first()
-            nombres.append(f"{cod} - {emp.nombre}" if emp else cod)
+            if emp and emp.nombre:
+                nombres.append(f"{cod} - {emp.nombre}")
+            else:
+                nombres.append(cod)
         return nombres
 
     cola_en_cola = db.query(

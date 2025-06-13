@@ -10,7 +10,6 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/asignar", response_class=HTMLResponse)
 def mostrar_asignacion(request: Request, db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
-    # Filtrar solo los vehículos que están en estado "en_cola"
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
     disponibles = [v[0] for v in vehiculos_en_cola]
 
@@ -36,11 +35,15 @@ def asignar_vehiculo(
     elif not empleado_obj:
         mensaje = f"❌ El empleado {empleado} no existe."
     else:
-        vehiculo_obj.asignado_a = empleado
-        db.commit()
-        mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
+        codigos_actuales = vehiculo_obj.asignado_a.split(",") if vehiculo_obj.asignado_a else []
+        if empleado not in codigos_actuales:
+            codigos_actuales.append(empleado)
+            vehiculo_obj.asignado_a = ",".join(codigos_actuales)
+            db.commit()
+            mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
+        else:
+            mensaje = f"⚠️ El empleado {empleado} ya estaba asignado al vehículo {vehiculo}."
 
-    # Volver a cargar vehículos en cola actualizados
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
     disponibles = [v[0] for v in vehiculos_en_cola]
 
