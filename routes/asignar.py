@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db, get_db_empleados
@@ -9,7 +9,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 @router.get("/asignar", response_class=HTMLResponse)
-def mostrar_asignacion(request: Request, db: Session = Depends(get_db), db_emp: Session = Depends(get_db_empleados)):
+def mostrar_asignacion(request: Request, db: Session = Depends(get_db)):
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
     disponibles = [v[0] for v in vehiculos_en_cola]
 
@@ -35,14 +35,15 @@ def asignar_vehiculo(
     elif not empleado_obj:
         mensaje = f"❌ El empleado {empleado} no existe."
     else:
-        codigos_actuales = vehiculo_obj.asignado_a.split(",") if vehiculo_obj.asignado_a else []
-        if empleado not in codigos_actuales:
-            codigos_actuales.append(empleado)
-            vehiculo_obj.asignado_a = ",".join(codigos_actuales)
+        # Añadir nuevo código si no está ya asignado
+        asignados = vehiculo_obj.asignado_a.split(",") if vehiculo_obj.asignado_a else []
+        if empleado not in asignados:
+            asignados.append(empleado)
+            vehiculo_obj.asignado_a = ",".join(asignados)
             db.commit()
             mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
         else:
-            mensaje = f"⚠️ El empleado {empleado} ya estaba asignado al vehículo {vehiculo}."
+            mensaje = f"⚠️ El empleado {empleado} ya está asignado a {vehiculo}."
 
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
     disponibles = [v[0] for v in vehiculos_en_cola]
