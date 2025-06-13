@@ -6,7 +6,7 @@ from datetime import datetime
 
 router = APIRouter()
 
-# ✅ Verificar si un vehículo está disponible (clasificado o en proceso)
+# Verificar disponibilidad
 @router.get("/verificar_disponibilidad")
 def verificar_disponibilidad(codigo: str = Query(...), db: Session = Depends(get_db)):
     clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
@@ -20,8 +20,7 @@ def verificar_disponibilidad(codigo: str = Query(...), db: Session = Depends(get
     ).first()
     return {"disponible": bool(clasificado or en_cola or en_lavado)}
 
-
-# ✅ Check-in del lavador
+# Check-in
 @router.post("/checkin")
 def checkin(
     codigo: str = Form(...),
@@ -30,11 +29,9 @@ def checkin(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
-    # Validar si el empleado ya tiene un check-in activo
     if db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first():
         return {"error": "Ya tienes un check-in activo"}
 
-    # Validar vehículo clasificado y en cola o en proceso
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     en_cola = db.query(ColaLavado).filter(
         ColaLavado.codigo_vehiculo == codigo,
@@ -44,17 +41,14 @@ def checkin(
     if not clasificacion or not en_cola:
         return {"error": "Vehículo no clasificado o ya finalizado"}
 
-    # Convertir fecha
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
         return {"error": f"Formato inválido de fecha: {e}"}
 
-    # Obtener nombre del empleado
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    # Crear registro de lavado
     registro = RegistroLavado(
         vehiculo=codigo,
         empleado=empleado,
@@ -67,15 +61,13 @@ def checkin(
     )
     db.add(registro)
 
-    # Cambiar estado a en_proceso si estaba en_cola
     if en_cola.estado == "en_cola":
         en_cola.estado = "en_proceso"
 
     db.commit()
     return {"status": "checkin exitoso"}
 
-
-# ✅ Check-out del lavador
+# Check-out
 @router.post("/registrar")
 def registrar_lavado(
     codigo: str = Form(...),
@@ -98,36 +90,28 @@ def registrar_lavado(
         print("❌ Error en formato de fecha:", str(e))
         return {"error": f"Error en formato de fecha: {str(e)}"}
 
-    # Buscar el registro de lavado activo
+    # 🔥 SOLUCIÓN CLAVE: no filtrar por fecha exacta
     registro = db.query(RegistroLavado).filter(
-        RegistroLavado.vehiculo == codigo,
         RegistroLavado.empleado == empleado,
         RegistroLavado.fin.is_(None)
-    ).first()
+    ).order_by(RegistroLavado.inicio.desc()).first()
 
     if not registro:
-        print("❌ No se encontró un registro activo con ese vehículo y empleado")
+        print("❌ No se encontró un registro activo con ese empleado")
         return {"error": "No hay check-in previo"}
 
     print("✅ Registro encontrado:", registro)
 
-    # Buscar clasificación
-    clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
+    clasificacion = db.query(Clasificacion).filter_by(codigo=registro.vehiculo).first()
     if not clasificacion:
         print("❌ Vehículo no está clasificado en tabla Clasificacion")
         return {"error": "Vehículo no clasificado"}
 
-    # Calcular eficiencia
-    tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
+    tiempo_real = int((fin_dt - registro.inicio).total_seconds() / 60)
     eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
-
-    # Buscar nombre del empleado
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
-    print(f"🔍 Tiempo real: {tiempo_real} min - Eficiencia: {eficiencia}%")
-
-    # Actualizar datos del registro
     registro.fin = fin_dt
     registro.tiempo_real = tiempo_real
     registro.eficiencia = f"{eficiencia}%"
