@@ -1,10 +1,18 @@
-from fastapi import APIRouter, Form, Depends
+from fastapi import APIRouter, Form, Depends, Query
 from sqlalchemy.orm import Session
 from database import get_db, get_db_empleados
 from models import Clasificacion, ColaLavado, RegistroLavado, Empleado
 from datetime import datetime
 
 router = APIRouter()
+@router.get("/verificar_disponibilidad")
+def verificar_disponibilidad(codigo: str = Query(...), db: Session = Depends(get_db)):
+    clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
+    en_cola = db.query(ColaLavado).filter(
+        ColaLavado.codigo_vehiculo == codigo,
+        ColaLavado.estado.in_(["en_cola", "en_proceso"])
+    ).first()
+    return {"disponible": bool(clasificado and en_cola)}
 
 @router.post("/checkin")
 def checkin(
