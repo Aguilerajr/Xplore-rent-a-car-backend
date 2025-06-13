@@ -85,12 +85,20 @@ def registrar_lavado(
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
+    print("➡️ Iniciando proceso de CHECK-OUT")
+    print(f"📌 Vehículo: {codigo}")
+    print(f"👤 Empleado: {empleado}")
+    print(f"⏱️ Inicio: {inicio}")
+    print(f"⏱️ Fin: {fin}")
+
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
         fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
+        print("❌ Error en formato de fecha:", str(e))
         return {"error": f"Error en formato de fecha: {str(e)}"}
 
+    # Buscar el registro de lavado activo
     registro = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == codigo,
         RegistroLavado.empleado == empleado,
@@ -98,31 +106,47 @@ def registrar_lavado(
     ).first()
 
     if not registro:
+        print("❌ No se encontró un registro activo con ese vehículo y empleado")
         return {"error": "No hay check-in previo"}
 
+    print("✅ Registro encontrado:", registro)
+
+    # Buscar clasificación
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     if not clasificacion:
+        print("❌ Vehículo no está clasificado en tabla Clasificacion")
         return {"error": "Vehículo no clasificado"}
 
+    # Calcular eficiencia
     tiempo_real = int((fin_dt - inicio_dt).total_seconds() / 60)
     eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
 
+    # Buscar nombre del empleado
+    emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
+    nombre = emp.nombre if emp else "Desconocido"
+
+    print(f"🔍 Tiempo real: {tiempo_real} min - Eficiencia: {eficiencia}%")
+
+    # Actualizar datos del registro
     registro.fin = fin_dt
     registro.tiempo_real = tiempo_real
     registro.eficiencia = f"{eficiencia}%"
+    db.commit()
 
-    db.commit()  # ✅ Guardar primero el registro actualizado
+    print("🧹 Verificando si quedan lavadores activos en ese vehículo...")
 
-    # Verificar si hay más lavadores activos
     activos = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == codigo,
         RegistroLavado.fin.is_(None)
     ).count()
 
-    # Si ya nadie más está lavando este vehículo, eliminar de las tablas
+    print(f"🚻 Lavadores activos restantes: {activos}")
+
     if activos == 0:
+        print("🗑️ Eliminando de cola y clasificaciones porque ya no hay lavadores")
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
         db.query(Clasificacion).filter_by(codigo=codigo).delete()
         db.commit()
 
+    print("✅ CHECK-OUT COMPLETADO")
     return {"status": "ok", "eficiencia": eficiencia}
