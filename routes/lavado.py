@@ -14,7 +14,13 @@ def verificar_disponibilidad(codigo: str = Query(...), db: Session = Depends(get
         ColaLavado.codigo_vehiculo == codigo,
         ColaLavado.estado.in_(["en_cola", "en_proceso"])
     ).first()
-    return {"disponible": bool(clasificado and en_cola)}
+    en_registro = db.query(RegistroLavado).filter(
+        RegistroLavado.vehiculo == codigo,
+        RegistroLavado.fin.is_(None)
+    ).first()
+
+    return {"disponible": bool(clasificado or en_cola or en_registro)}
+
 
 
 # ✅ Check-in del lavador
