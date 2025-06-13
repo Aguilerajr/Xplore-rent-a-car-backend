@@ -9,17 +9,24 @@ router = APIRouter()
 # ✅ Verificar si un vehículo está disponible
 @router.get("/verificar_disponibilidad")
 def verificar_disponibilidad(codigo: str = Query(...), db: Session = Depends(get_db)):
+    # Revisar si está clasificado
     clasificado = db.query(Clasificacion).filter_by(codigo=codigo).first()
+
+    # Revisar si está en cola o en proceso
     en_cola = db.query(ColaLavado).filter(
         ColaLavado.codigo_vehiculo == codigo,
         ColaLavado.estado.in_(["en_cola", "en_proceso"])
     ).first()
-    en_registro = db.query(RegistroLavado).filter(
+
+    # Revisar si tiene un registro de lavado activo (check-in sin check-out)
+    en_lavado = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == codigo,
         RegistroLavado.fin.is_(None)
     ).first()
 
-    return {"disponible": bool(clasificado or en_cola or en_registro)}
+    # Si cumple alguna de estas, está disponible para la app
+    return {"disponible": bool(clasificado or en_cola or en_lavado)}
+
 
 
 
