@@ -12,7 +12,6 @@ templates = Jinja2Templates(directory="templates")
 def mostrar_asignacion(request: Request, db: Session = Depends(get_db)):
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
     disponibles = [v[0] for v in vehiculos_en_cola]
-
     return templates.TemplateResponse("asignar.html", {
         "request": request,
         "vehiculos": disponibles,
@@ -23,27 +22,30 @@ def mostrar_asignacion(request: Request, db: Session = Depends(get_db)):
 def asignar_vehiculo(
     request: Request,
     vehiculo: str = Form(...),
-    empleado: str = Form(...),
+    empleados: list[str] = Form(...),
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
 ):
     vehiculo_obj = db.query(ColaLavado).filter_by(codigo_vehiculo=vehiculo, estado="en_cola").first()
-    empleado_obj = db_emp.query(Empleado).filter_by(codigo=empleado).first()
 
     if not vehiculo_obj:
         mensaje = f"❌ El vehículo {vehiculo} no está en cola."
-    elif not empleado_obj:
-        mensaje = f"❌ El empleado {empleado} no existe."
     else:
-        # Añadir nuevo código si no está ya asignado
         asignados = vehiculo_obj.asignado_a.split(",") if vehiculo_obj.asignado_a else []
-        if empleado not in asignados:
-            asignados.append(empleado)
-            vehiculo_obj.asignado_a = ",".join(asignados)
-            db.commit()
-            mensaje = f"✅ Vehículo {vehiculo} asignado a empleado {empleado}."
-        else:
-            mensaje = f"⚠️ El empleado {empleado} ya está asignado a {vehiculo}."
+        mensajes = []
+        for emp_codigo in empleados:
+            emp = db_emp.query(Empleado).filter_by(codigo=emp_codigo).first()
+            if not emp:
+                mensajes.append(f"❌ Empleado {emp_codigo} no existe.")
+            elif emp_codigo in asignados:
+                mensajes.append(f"⚠️ Empleado {emp_codigo} ya estaba asignado.")
+            else:
+                asignados.append(emp_codigo)
+                mensajes.append(f"✅ Vehículo {vehiculo} asignado a empleado {emp_codigo}.")
+
+        vehiculo_obj.asignado_a = ",".join(asignados)
+        db.commit()
+        mensaje = "<br>".join(mensajes)
 
     vehiculos_en_cola = db.query(ColaLavado.codigo_vehiculo).filter_by(estado="en_cola").all()
     disponibles = [v[0] for v in vehiculos_en_cola]
