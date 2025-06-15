@@ -29,6 +29,7 @@ def mostrar_panel_cola(request: Request, db: Session = Depends(get_db)):
         return [{
             "codigo_vehiculo": cl.codigo_vehiculo,
             "estado": cl.estado,
+            "asignado_a": cl.asignado_a,
             "fecha": cl.fecha,
             "clasificacion": detalle
         } for cl, detalle in cola]
@@ -77,6 +78,7 @@ def obtener_cola_lavado(
         return [{
             "codigo_vehiculo": cl.codigo_vehiculo,
             "estado": cl.estado,
+            "asignado_a": obtener_nombres(cl.asignado_a),
             "fecha": cl.fecha.strftime("%Y-%m-%d %H:%M:%S"),
             "clasificacion": detalle
         } for cl, detalle in cola]
