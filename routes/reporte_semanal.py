@@ -43,7 +43,7 @@ def generar_reporte(
 
     data = []
     for r in registros:
-        eficiencia = round((r.tiempo_estimado / r.tiempo_real) * 100, 2) if r.tiempo_real else 0
+        eficiencia = round((r.tiempo_estimado / r.tiempo_real), 4) if r.tiempo_real else 0
         data.append({
             "Fecha": r.inicio.strftime("%Y-%m-%d"),
             "Empleado": r.nombre_empleado,
@@ -62,11 +62,15 @@ def generar_reporte(
     }).reset_index()
 
     resumen.rename(columns={"Vehículo": "Vehículos Lavados"}, inplace=True)
-    resumen["Eficiencia Semanal (%)"] = round(
-        (resumen["Minutos Estimados"] / resumen["Minutos Reales"]).replace([float('inf'), float('nan')], 0) * 100, 2
+
+    # CORREGIDO: ya no se multiplica por 100, se deja como decimal para aplicar formato % en Excel
+    resumen["Eficiencia Semanal (%)"] = (
+        (resumen["Minutos Estimados"] / resumen["Minutos Reales"])
+        .replace([float('inf'), float('nan')], 0)
+        .round(4)
     )
 
-    # Asegurarse que todos los empleados estén presentes
+    # Asegurar que todos los empleados aparezcan
     resumen = pd.merge(
         pd.DataFrame({"Empleado": empleados_todos}),
         resumen,
@@ -81,10 +85,10 @@ def generar_reporte(
 
     # Gráfico estilo empresarial
     fig, ax = plt.subplots(figsize=(10, 5))
-    bars = ax.bar(resumen["Empleado"], resumen["Eficiencia Semanal (%)"])
+    bars = ax.bar(resumen["Empleado"], resumen["Eficiencia Semanal (%)"] * 100)
     ax.set_title("Eficiencia Diaria", fontsize=14, weight="bold")
     ax.set_ylabel("Eficiencia (%)")
-    ax.set_ylim(0, max(100, resumen["Eficiencia Semanal (%)"].max() + 10))
+    ax.set_ylim(0, max(100, (resumen["Eficiencia Semanal (%)"] * 100).max() + 10))
     plt.xticks(rotation=45, ha='right')
 
     for bar in bars:
