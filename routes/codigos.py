@@ -38,28 +38,75 @@ def generar_codigos_pdf_o_png(codigos: str = Form(...)):
 
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
-    x, y = 50, 750
+    x, y = 30, 720
+    ancho_codigo = 150
+    alto_codigo = 40
+    margen_x = 20
+    margen_y = 40
+    codigos_por_fila = 3
 
-    for codigo in codigos_list:
+    for idx, codigo in enumerate(codigos_list):
+        col = idx % codigos_por_fila
+        row = idx // codigos_por_fila
+        pos_x = x + col * (ancho_codigo + margen_x)
+        pos_y = y - (row % 8) * (alto_codigo + margen_y)
+
         img_buffer = io.BytesIO()
         barcode.get("code128", codigo, writer=ImageWriter()).write(img_buffer)
         img_buffer.seek(0)
-        c.drawImage(ImageReader(img_buffer), x, y, width=200, height=60)
-        c.drawString(x, y - 15, codigo)
-        y -= 100
-        if y < 100:
+        c.drawImage(ImageReader(img_buffer), pos_x, pos_y, width=ancho_codigo, height=alto_codigo)
+        c.setFont("Helvetica", 8)
+        c.drawCentredString(pos_x + ancho_codigo / 2, pos_y - 10, codigo)
+
+        if (row + 1) % 8 == 0 and col == codigos_por_fila - 1:
             c.showPage()
-            y = 750
 
     c.save()
     buffer.seek(0)
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=codigos.pdf"}
+        headers={"Content-Disposition": "attachment; filename=codigos_todos.pdf"}
     )
 
-# 🔍 Ruta necesaria para el autocompletado en /calidad
+@router.get("/crear_codigos/generar_todos")
+def generar_todos(db: Session = Depends(get_db)):
+    codigos = db.query(Vehiculo.codigo).all()
+    codigos_list = [c[0] for c in codigos]
+
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    x, y = 30, 720
+    ancho_codigo = 150
+    alto_codigo = 40
+    margen_x = 20
+    margen_y = 40
+    codigos_por_fila = 3
+
+    for idx, codigo in enumerate(codigos_list):
+        col = idx % codigos_por_fila
+        row = idx // codigos_por_fila
+        pos_x = x + col * (ancho_codigo + margen_x)
+        pos_y = y - (row % 8) * (alto_codigo + margen_y)
+
+        img_buffer = io.BytesIO()
+        barcode.get("code128", codigo, writer=ImageWriter()).write(img_buffer)
+        img_buffer.seek(0)
+        c.drawImage(ImageReader(img_buffer), pos_x, pos_y, width=ancho_codigo, height=alto_codigo)
+        c.setFont("Helvetica", 8)
+        c.drawCentredString(pos_x + ancho_codigo / 2, pos_y - 10, codigo)
+
+        if (row + 1) % 8 == 0 and col == codigos_por_fila - 1:
+            c.showPage()
+
+    c.save()
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=codigos_todos.pdf"}
+    )
+
 @router.get("/buscar_codigos")
 def buscar_codigos(q: str = Query(..., min_length=1), db: Session = Depends(get_db)):
     resultados = db.query(Vehiculo.codigo).filter(Vehiculo.codigo.ilike(f"%{q}%")).limit(10).all()
