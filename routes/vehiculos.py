@@ -18,29 +18,35 @@ def mostrar_formulario_vehiculo(request: Request):
 @router.post("/agregar_vehiculo", response_class=HTMLResponse)
 def agregar_vehiculo(
     request: Request,
-    codigo: str = Form(...),
+    letra: str = Form(...),
+    numero: str = Form(...),
+    marca: str = Form(...),
+    modelo: str = Form(...),
+    tipo: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    # Validación de formato
-    if not re.fullmatch(r"[A-Z]{1,3}-\d{4}", codigo):
-        mensaje = "❌ Código inválido. Debe tener formato como ABC-1234"
+    codigo = f"{letra}-{numero}"
 
-    # Validación por código exacto
+    # Validar formato general
+    if not re.fullmatch(r"[A-Z]{1}-\d{4}", codigo):
+        mensaje = "❌ Código inválido. Debe tener formato como D-1234"
+
     elif db.query(Vehiculo).filter_by(codigo=codigo).first():
         mensaje = "❌ El vehículo ya existe."
 
     else:
-        # Extraer los 4 dígitos
-        digitos = codigo.split("-")[1]
-
-        # Validar duplicado de número aunque cambie la letra
-        vehiculos_con_mismo_numero = db.query(Vehiculo).filter(Vehiculo.codigo.like(f"%-{digitos}")).first()
+        # Validar duplicado de número sin importar letra
+        vehiculos_con_mismo_numero = db.query(Vehiculo).filter(Vehiculo.codigo.like(f"%-{numero}")).first()
 
         if vehiculos_con_mismo_numero:
-            mensaje = f"❌ Ya existe un vehículo con el número {digitos} (sin importar la letra)."
+            mensaje = f"❌ Ya existe un vehículo con el número {numero} (sin importar la letra)."
         else:
-            db.add(Vehiculo(codigo=codigo))
+            nuevo_vehiculo = Vehiculo(codigo=codigo, marca=marca, modelo=modelo, tipo=tipo)
+            db.add(nuevo_vehiculo)
             db.commit()
             mensaje = f"✅ Vehículo {codigo} agregado correctamente."
 
-    return templates.TemplateResponse("agregar_vehiculo.html", {"request": request, "mensaje": mensaje})
+    return templates.TemplateResponse("agregar_vehiculo.html", {
+        "request": request,
+        "mensaje": mensaje
+    })
