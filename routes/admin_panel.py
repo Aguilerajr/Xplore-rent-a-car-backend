@@ -41,8 +41,12 @@ def mostrar_panel_admin(request: Request, db: Session = Depends(get_db), db_emp:
         "registros_lavado": registros_lavado,
         "clasificaciones": clasificaciones,
         "cola_lavado": cola_lavado,
-        "descripcion_clasificacion": descripcion_clasificacion  # ✅ pasamos la función
+        "descripcion_clasificacion": descripcion_clasificacion
     })
+
+# ===========================
+# 🚗 RUTAS DE VEHÍCULOS
+# ===========================
 
 @router.get("/admin_panel/editar_vehiculo/{codigo}", response_class=HTMLResponse)
 def editar_vehiculo_get(codigo: str, request: Request, db: Session = Depends(get_db)):
@@ -62,6 +66,10 @@ def editar_vehiculo_post(codigo: str, request: Request, marca: str = Form(...), 
     db.commit()
     return RedirectResponse("/admin_panel", status_code=302)
 
+# ===========================
+# 👤 RUTAS DE EMPLEADOS
+# ===========================
+
 @router.get("/admin_panel/editar_empleado/{codigo}", response_class=HTMLResponse)
 def editar_empleado_get(codigo: str, request: Request, db: Session = Depends(get_db_empleados)):
     empleado = db.query(Empleado).filter_by(codigo=codigo).first()
@@ -76,4 +84,12 @@ def editar_empleado_post(codigo: str, request: Request, nombre: str = Form(...),
         return HTMLResponse(content="Empleado no encontrado", status_code=404)
     empleado.nombre = nombre
     db.commit()
+    return RedirectResponse("/admin_panel", status_code=302)
+
+@router.post("/admin_panel/eliminar_empleado/{codigo}")
+def eliminar_empleado(codigo: str, db: Session = Depends(get_db_empleados)):
+    empleado = db.query(Empleado).filter_by(codigo=codigo).first()
+    if empleado:
+        db.delete(empleado)
+        db.commit()
     return RedirectResponse("/admin_panel", status_code=302)

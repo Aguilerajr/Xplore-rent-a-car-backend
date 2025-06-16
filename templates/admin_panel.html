@@ -70,7 +70,6 @@
 </head>
 <body class="bg-light">
 
-<!-- NUEVO ENCABEZADO XPLORE -->
 <div class="header-xplore">
     <h2>XPLORE - Panel de Administración</h2>
     <a href="/"><img src="/static/logo_xplore.png" alt="Xplore Logo"></a>
@@ -86,6 +85,7 @@
     </ul>
 
     <div class="tab-content">
+        <!-- Vehículos -->
         <div class="tab-pane fade show active" id="vehiculos">
             <input type="text" class="form-control mb-3" id="buscador" onkeyup="filtrarVehiculos()" placeholder="Buscar por código...">
             <div class="accordion" id="vehiculosAccordion">
@@ -110,9 +110,9 @@
                                 {% for v in vehiculos_letra %}
                                 <li class="list-group-item d-flex justify-content-between align-items-center vehiculo-item" data-codigo="{{ v.codigo | upper }}">
                                     <span><strong>{{ v.codigo }}</strong> - {{ v.marca }} {{ v.modelo }} ({{ v.tipo }})</span>
-                                    <span>
-                                        <a href="#" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
-                                        <a href="#" class="btn btn-sm btn-outline-danger">🗑️ Eliminar</a>
+                                    <span class="d-flex">
+                                        <a href="/admin_panel/editar_vehiculo/{{ v.codigo }}" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
+                                        <button class="btn btn-sm btn-outline-danger" disabled>🗑️ Eliminar</button>
                                     </span>
                                 </li>
                                 {% endfor %}
@@ -124,21 +124,25 @@
             </div>
         </div>
 
+        <!-- Empleados -->
         <div class="tab-pane fade" id="empleados">
             <h2 class="text-success">Empleados</h2>
             <ul class="list-group">
                 {% for e in empleados %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <span><strong>{{ e.nombre }}</strong> - Código: {{ e.codigo }}</span>
-                    <span>
-                        <a href="#" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
-                        <a href="#" class="btn btn-sm btn-outline-danger">🗑️ Eliminar</a>
+                    <span class="d-flex">
+                        <a href="/admin_panel/editar_empleado/{{ e.codigo }}" class="btn btn-sm btn-outline-warning me-2">✏️ Editar</a>
+                        <form action="/admin_panel/eliminar_empleado/{{ e.codigo }}" method="post" onsubmit="return confirm('¿Seguro que deseas eliminar este empleado?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">🗑️ Eliminar</button>
+                        </form>
                     </span>
                 </li>
                 {% endfor %}
             </ul>
         </div>
 
+        <!-- Clasificaciones -->
         <div class="tab-pane fade" id="clasificaciones">
             <h2 class="text-info">Clasificaciones</h2>
             <ul class="list-group">
@@ -150,6 +154,7 @@
             </ul>
         </div>
 
+        <!-- Cola Lavado -->
         <div class="tab-pane fade" id="cola">
             <h2 class="text-warning">Cola de Lavado</h2>
             <ul class="list-group">
@@ -161,6 +166,7 @@
             </ul>
         </div>
 
+        <!-- Registros -->
         <div class="tab-pane fade" id="registros">
             <h2 class="text-secondary">Registros de Lavado</h2>
             <ul class="list-group">
