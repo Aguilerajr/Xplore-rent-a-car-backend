@@ -41,11 +41,14 @@ def generar_reporte(
 
     empleados_todos = [e.nombre for e in db_empleados.query(Empleado).all()]
 
+    # ✅ AGREGADO: hora de inicio y hora de fin en la tabla detalle
     data = []
     for r in registros:
         eficiencia = round((r.tiempo_estimado / r.tiempo_real), 4) if r.tiempo_real else 0
         data.append({
             "Fecha": r.inicio.strftime("%Y-%m-%d"),
+            "Hora Inicio": r.inicio.strftime("%H:%M:%S") if r.inicio else "",
+            "Hora Fin": r.fin.strftime("%H:%M:%S") if r.fin else "",
             "Empleado": r.nombre_empleado,
             "Vehículo": r.vehiculo,
             "Minutos Estimados": r.tiempo_estimado,
@@ -63,7 +66,6 @@ def generar_reporte(
 
     resumen.rename(columns={"Vehículo": "Vehículos Lavados"}, inplace=True)
 
-    # CORREGIDO: ya no se multiplica por 100, se deja como decimal para aplicar formato % en Excel
     resumen["Eficiencia Semanal (%)"] = (
         (resumen["Minutos Estimados"] / resumen["Minutos Reales"])
         .replace([float('inf'), float('nan')], 0)
