@@ -70,7 +70,7 @@
 <!-- NAVBAR -->
 <nav class="navbar">
     <div class="container-fluid">
-        <button class="btn btn-light me-3" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMenu">
+        <button class="btn btn-light me-3" type="button" onclick="pedirClave()">
             <i class="bi bi-list"></i>
         </button>
         <a class="navbar-brand" href="/">
@@ -101,8 +101,21 @@
     <h2>Selecciona una acción</h2>
     <a class="menu-link" href="/calidad">🔍 Clasificar Vehículo</a>
     <a class="menu-link" href="/panel_cola">🧼 Cola de Lavado</a>
-
 </div>
+
+<!-- SCRIPTS -->
+<script>
+    function pedirClave() {
+        const clave = prompt("🔒 Ingrese la contraseña para acceder:");
+
+        if (clave === "admin123") {
+            const panel = new bootstrap.Offcanvas(document.getElementById("offcanvasMenu"));
+            panel.show();
+        } else if (clave !== null) {
+            alert("❌ Contraseña incorrecta.");
+        }
+    }
+</script>
 
 </body>
 </html>
