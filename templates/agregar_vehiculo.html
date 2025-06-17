@@ -72,14 +72,13 @@
     <form method="post">
         <div class="mb-3">
             <label for="letra" class="form-label">Letra:</label>
-            <select name="letra" id="letra" class="form-select" required>
+            <select name="letra" id="letra" class="form-select" required onchange="actualizarTipo()">
                 <option value="">Seleccione una letra</option>
                 <option value="P">P - Pick Up</option>
                 <option value="T">T - Turismo</option>
                 <option value="C">C - Camioneta</option>
                 <option value="M">M - Microbús / Busito</option>
             </select>
-
         </div>
 
         <div class="mb-3">
@@ -99,7 +98,9 @@
 
         <div class="mb-3">
             <label for="tipo" class="form-label">Tipo:</label>
-            <input type="text" name="tipo" id="tipo" class="form-control" required placeholder="Ej: Pick up">
+            <select name="tipo" id="tipo" class="form-select" required>
+                <option value="">Seleccione un tipo</option>
+            </select>
         </div>
 
         <button type="submit" class="btn btn-primary w-100">Agregar</button>
@@ -107,6 +108,32 @@
 
     <a href="/" class="regresar">← Regresar al inicio</a>
 </div>
+
+<script>
+    function actualizarTipo() {
+        const letra = document.getElementById("letra").value;
+        const tipo = document.getElementById("tipo");
+
+        // Limpiar opciones actuales
+        tipo.innerHTML = '<option value="">Seleccione un tipo</option>';
+
+        const opciones = {
+            P: ["Pick Up"],
+            T: ["Turismo Normal", "Turismo Pequeño"],
+            C: ["Camioneta Grande", "Camioneta Pequeña"],
+            M: ["Microbús", "Busito"]
+        };
+
+        if (opciones[letra]) {
+            opciones[letra].forEach(function(opcion) {
+                const opt = document.createElement("option");
+                opt.value = opcion;
+                opt.text = opcion;
+                tipo.appendChild(opt);
+            });
+        }
+    }
+</script>
 
 </body>
 </html>
