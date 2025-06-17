@@ -134,3 +134,4 @@ def registrar_lavado(
 
     print("✅ CHECK-OUT COMPLETADO")
     return {"status": "ok", "eficiencia": eficiencia}
+ 
