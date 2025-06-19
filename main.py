@@ -13,6 +13,7 @@ from routes.codigos import router as codigos_router
 from routes.admin_panel import router as admin_panel_router
 from routes.reporte_semanal import router as reporte_router
 from routes.reporte_formulario import router as reporte_formulario_router
+from routes.eficiencia_tiempo_real import router as eficiencia_router
 from routes import panel_cola
 
 app = FastAPI()
@@ -39,4 +40,5 @@ app.include_router(codigos_router)
 app.include_router(admin_panel_router)
 app.include_router(reporte_router)
 app.include_router(reporte_formulario_router)
+app.include_router(eficiencia_router)
 app.include_router(panel_cola.router)

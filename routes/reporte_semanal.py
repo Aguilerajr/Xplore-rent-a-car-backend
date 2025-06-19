@@ -8,9 +8,88 @@ from io import BytesIO
 from datetime import datetime, timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
+import smtplib
+import os
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
+
+# Configuración temporal para pruebas
+try:
+    from config_correo_temp import configurar_credenciales_correo
+    configurar_credenciales_correo()
+except ImportError:
+    pass
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+def enviar_reporte_por_correo(archivo_excel, nombre_archivo, semana_numero):
+    """
+    Envía el reporte por correo electrónico usando Gmail
+    """
+    try:
+        # Configuración del correo desde variables de entorno (Gmail)
+        smtp_server = os.getenv('EMAIL_SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('EMAIL_SMTP_PORT', '587'))
+        email_usuario = os.getenv('EMAIL_USER', 'reportexplorerentacar@gmail.com')  # Cuenta Gmail para envío
+        email_password = os.getenv('EMAIL_PASSWORD')
+        email_destino = "efrain.aguilar@xplorerentacar.com"  # Destinatario fijo
+
+        if not email_password:
+            print("Error: Contraseña de correo no configurada")
+            return False
+        
+        # Crear mensaje
+        msg = MIMEMultipart()
+        msg['From'] = email_usuario
+        msg['To'] = email_destino
+        msg['Subject'] = f"Reporte Semanal - Semana {semana_numero}"
+        
+        # Cuerpo del mensaje
+        cuerpo = f"""
+        Hola Efrain,
+        
+        Se adjunta el reporte semanal correspondiente a la semana {semana_numero}.
+        
+        Este reporte fue generado automáticamente por el sistema Xplore.
+        
+        Saludos cordiales,
+        Sistema de Reportes Xplore
+        """
+        
+        msg.attach(MIMEText(cuerpo, 'plain'))
+        
+        # Adjuntar archivo Excel
+        archivo_excel.seek(0)  # Volver al inicio del archivo
+        adjunto = MIMEBase('application', 'octet-stream')
+        adjunto.set_payload(archivo_excel.read())
+        encoders.encode_base64(adjunto)
+        adjunto.add_header(
+            'Content-Disposition',
+            f'attachment; filename= {nombre_archivo}'
+        )
+        msg.attach(adjunto)
+        
+        # Enviar correo usando Gmail SMTP
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(email_usuario, email_password)
+        texto = msg.as_string()
+        server.sendmail(email_usuario, email_destino, texto)
+        server.quit()
+        
+        print(f"Correo enviado exitosamente desde {email_usuario} a {email_destino}")
+        return True
+        
+    except Exception as e:
+        print(f"Error al enviar correo: {str(e)}")
+        return False
 
 @router.get("/reporte_semanal")
 def formulario_reporte(request: Request):
@@ -135,6 +214,16 @@ def generar_reporte(
 
     output.seek(0)
     nombre_archivo = f"reporte_semanal_semana_{numero_semana}.xlsx"
+    
+    # Crear una copia del archivo para el correo
+    archivo_para_correo = BytesIO()
+    archivo_para_correo.write(output.getvalue())
+    
+    # Enviar por correo electrónico
+    enviar_reporte_por_correo(archivo_para_correo, nombre_archivo, numero_semana)
+    
+    # Resetear el archivo original para la descarga
+    output.seek(0)
 
     return StreamingResponse(
         output,

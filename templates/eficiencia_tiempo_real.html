@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Eficiencia - Tiempo Real</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .header .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            opacity: 0.8;
+        }
+
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .employees-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .employee-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .employee-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .employee-card.high-efficiency::before {
+            transform: scaleX(1);
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+        }
+
+        .employee-card.medium-efficiency::before {
+            transform: scaleX(1);
+            background: linear-gradient(90deg, #FF9800, #FFC107);
+        }
+
+        .employee-card.low-efficiency::before {
+            transform: scaleX(1);
+            background: linear-gradient(90deg, #F44336, #E91E63);
+        }
+
+        .employee-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .employee-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+
+        .employee-code {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+
+        .efficiency-display {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .efficiency-value {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .efficiency-label {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .employee-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-item .label {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+
+        .stat-item .value {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .status-lavando {
+            background: rgba(76, 175, 80, 0.3);
+            border: 1px solid #4CAF50;
+        }
+
+        .status-disponible {
+            background: rgba(158, 158, 158, 0.3);
+            border: 1px solid #9E9E9E;
+        }
+
+        .last-update {
+            text-align: center;
+            padding: 10px;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2rem;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .updating {
+            animation: pulse 1s infinite;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .employees-grid {
+                grid-template-columns: 1fr;
+                padding: 10px;
+            }
+            
+            .stats-container {
+                grid-template-columns: 1fr;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚗 Dashboard de Eficiencia</h1>
+        <div class="subtitle">Monitoreo en Tiempo Real - Semana Actual</div>
+    </div>
+
+    <div class="stats-container">
+        <div class="stat-card">
+            <h3>Vehículos Hoy</h3>
+            <div class="value" id="vehiculos-hoy">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>Eficiencia Promedio Hoy</h3>
+            <div class="value" id="eficiencia-hoy">-%</div>
+        </div>
+        <div class="stat-card">
+            <h3>Vehículos Semana</h3>
+            <div class="value" id="vehiculos-semana">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>Eficiencia Promedio Semana</h3>
+            <div class="value" id="eficiencia-semana">-%</div>
+        </div>
+        <div class="stat-card">
+            <h3>Empleados Activos</h3>
+            <div class="value" id="empleados-activos">-</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="efficiencyChart" width="400" height="200"></canvas>
+    </div>
+
+    <div class="employees-grid" id="employees-container">
+        <div class="loading">
+            <div class="updating">Cargando datos de eficiencia...</div>
+        </div>
+    </div>
+
+    <div class="last-update">
+        Última actualización: <span id="last-update">-</span>
+    </div>
+
+    <script>
+        let chart;
+        let updateInterval;
+
+        // Inicializar el gráfico
+        function initChart() {
+            const ctx = document.getElementById('efficiencyChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Eficiencia (%)',
+                        data: [],
+                        backgroundColor: 'rgba(76, 175, 80, 0.6)',
+                        borderColor: 'rgba(76, 175, 80, 1)',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Eficiencia por Empleado - Semana Actual',
+                            color: 'white',
+                            font: {
+                                size: 18,
+                                weight: 'bold'
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                color: 'white'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 150,
+                            ticks: {
+                                color: 'white',
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: 'white',
+                                maxRotation: 45
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Actualizar datos
+        async function updateData() {
+            try {
+                document.body.classList.add('updating');
+                
+                // Obtener datos de eficiencia
+                const eficienciaResponse = await fetch('/api/eficiencia_actual');
+                const eficienciaData = await eficienciaResponse.json();
+                
+                // Obtener estadísticas generales
+                const statsResponse = await fetch('/api/estadisticas_generales');
+                const statsData = await statsResponse.json();
+                
+                // Actualizar estadísticas generales
+                document.getElementById('vehiculos-hoy').textContent = statsData.hoy.vehiculos_lavados;
+                document.getElementById('eficiencia-hoy').textContent = statsData.hoy.eficiencia_promedio + '%';
+                document.getElementById('vehiculos-semana').textContent = statsData.semana.vehiculos_lavados;
+                document.getElementById('eficiencia-semana').textContent = statsData.semana.eficiencia_promedio + '%';
+                document.getElementById('empleados-activos').textContent = statsData.empleados_activos;
+                
+                // Actualizar gráfico
+                const labels = eficienciaData.empleados.map(emp => emp.nombre);
+                const data = eficienciaData.empleados.map(emp => emp.eficiencia);
+                
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = data;
+                
+                // Colorear barras según eficiencia
+                chart.data.datasets[0].backgroundColor = data.map(eff => {
+                    if (eff >= 100) return 'rgba(76, 175, 80, 0.8)';
+                    if (eff >= 80) return 'rgba(255, 152, 0, 0.8)';
+                    return 'rgba(244, 67, 54, 0.8)';
+                });
+                
+                chart.update('none');
+                
+                // Actualizar tarjetas de empleados
+                updateEmployeeCards(eficienciaData.empleados);
+                
+                // Actualizar timestamp
+                document.getElementById('last-update').textContent = eficienciaData.ultima_actualizacion;
+                
+            } catch (error) {
+                console.error('Error al actualizar datos:', error);
+            } finally {
+                document.body.classList.remove('updating');
+            }
+        }
+
+        // Actualizar tarjetas de empleados
+        function updateEmployeeCards(empleados) {
+            const container = document.getElementById('employees-container');
+            
+            container.innerHTML = empleados.map(emp => {
+                let efficiencyClass = 'low-efficiency';
+                if (emp.eficiencia >= 100) efficiencyClass = 'high-efficiency';
+                else if (emp.eficiencia >= 80) efficiencyClass = 'medium-efficiency';
+                
+                const statusClass = emp.estado === 'Lavando' ? 'status-lavando' : 'status-disponible';
+                const vehiculoInfo = emp.vehiculo_actual ? `(${emp.vehiculo_actual})` : '';
+                
+                return `
+                    <div class="employee-card ${efficiencyClass}">
+                        <div class="employee-header">
+                            <div class="employee-name">${emp.nombre}</div>
+                            <div class="employee-code">${emp.codigo}</div>
+                        </div>
+                        
+                        <div class="efficiency-display">
+                            <div class="efficiency-value">${emp.eficiencia}%</div>
+                            <div class="efficiency-label">Eficiencia Semanal</div>
+                        </div>
+                        
+                        <div class="employee-stats">
+                            <div class="stat-item">
+                                <div class="label">Vehículos</div>
+                                <div class="value">${emp.vehiculos_lavados}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="label">Tiempo Real</div>
+                                <div class="value">${emp.tiempo_real_total} min</div>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <span class="status-indicator ${statusClass}">
+                                ${emp.estado} ${vehiculoInfo}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Inicializar aplicación
+        document.addEventListener('DOMContentLoaded', function() {
+            initChart();
+            updateData();
+            
+            // Actualizar cada 5 segundos
+            updateInterval = setInterval(updateData, 5000);
+        });
+
+        // Limpiar interval al salir
+        window.addEventListener('beforeunload', function() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        });
+    </script>
+</body>
+</html>
