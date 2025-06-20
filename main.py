@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from pathlib import Path
 
 # Importar routers personalizados
-from routes.clasificacion import router as clasificacion_router
+from backend1.routes.clasificacion import router as clasificacion_router
 from routes.lavado import router as lavado_router
 from routes.empleados import router as empleados_router
 from routes.vehiculos import router as vehiculos_router

@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dashboard Eficiencia - Tiempo Real</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -21,35 +21,35 @@
 
         .header {
             background: rgba(0, 0, 0, 0.3);
-            padding: 20px;
+            padding: 10px;
             text-align: center;
             backdrop-filter: blur(10px);
         }
 
         .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+            font-size: 1.6rem;
+            margin-bottom: 5px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
 
         .header .subtitle {
-            font-size: 1.2rem;
+            font-size: 0.9rem;
             opacity: 0.9;
         }
 
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            padding: 20px;
-            max-width: 1200px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            padding: 10px;
+            max-width: 900px;
             margin: 0 auto;
         }
 
         .stat-card {
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 20px;
+            border-radius: 10px;
+            padding: 12px;
             text-align: center;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -57,43 +57,44 @@
         }
 
         .stat-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-3px);
         }
 
         .stat-card h3 {
-            font-size: 1.1rem;
-            margin-bottom: 10px;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
             opacity: 0.8;
         }
 
         .stat-card .value {
-            font-size: 2.5rem;
+            font-size: 1.8rem;
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
 
         .chart-container {
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 30px;
-            margin: 20px;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
+            height: 220px;
         }
 
         .employees-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            padding: 20px;
-            max-width: 1400px;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            padding: 10px;
+            max-width: 1100px;
             margin: 0 auto;
         }
 
         .employee-card {
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 20px;
+            border-radius: 10px;
+            padding: 12px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
             transition: all 0.3s ease;
@@ -107,7 +108,7 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 4px;
+            height: 3px;
             background: linear-gradient(90deg, #4CAF50, #8BC34A);
             transform: scaleX(0);
             transition: transform 0.3s ease;
@@ -132,42 +133,42 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
 
         .employee-name {
-            font-size: 1.3rem;
+            font-size: 1rem;
             font-weight: bold;
         }
 
         .employee-code {
             background: rgba(255, 255, 255, 0.2);
-            padding: 5px 10px;
+            padding: 3px 7px;
             border-radius: 20px;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
         }
 
         .efficiency-display {
             text-align: center;
-            margin: 20px 0;
+            margin: 12px 0;
         }
 
         .efficiency-value {
-            font-size: 3rem;
+            font-size: 2rem;
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
 
         .efficiency-label {
-            font-size: 1rem;
+            font-size: 0.85rem;
             opacity: 0.8;
         }
 
         .employee-stats {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-top: 15px;
+            gap: 10px;
+            margin-top: 10px;
         }
 
         .stat-item {
@@ -175,23 +176,23 @@
         }
 
         .stat-item .label {
-            font-size: 0.9rem;
+            font-size: 0.75rem;
             opacity: 0.7;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
 
         .stat-item .value {
-            font-size: 1.2rem;
+            font-size: 0.95rem;
             font-weight: bold;
         }
 
         .status-indicator {
             display: inline-block;
-            padding: 5px 15px;
+            padding: 3px 10px;
             border-radius: 20px;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: bold;
-            margin-top: 10px;
+            margin-top: 6px;
         }
 
         .status-lavando {
@@ -206,15 +207,15 @@
 
         .last-update {
             text-align: center;
-            padding: 10px;
-            font-size: 0.9rem;
+            padding: 6px;
+            font-size: 0.8rem;
             opacity: 0.7;
         }
 
         .loading {
             text-align: center;
-            padding: 50px;
-            font-size: 1.2rem;
+            padding: 25px;
+            font-size: 0.9rem;
         }
 
         @keyframes pulse {
@@ -229,17 +230,17 @@
 
         @media (max-width: 768px) {
             .header h1 {
-                font-size: 2rem;
+                font-size: 1.3rem;
             }
             
             .employees-grid {
                 grid-template-columns: 1fr;
-                padding: 10px;
+                padding: 6px;
             }
             
             .stats-container {
                 grid-template-columns: 1fr;
-                padding: 10px;
+                padding: 6px;
             }
         }
     </style>
