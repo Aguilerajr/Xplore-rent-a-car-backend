@@ -6,15 +6,15 @@ from pathlib import Path
 
 # Importar routers personalizados
 from backend1.routes.clasificacion import router as clasificacion_router
-from routes.lavado import router as lavado_router
-from routes.empleados import router as empleados_router
-from routes.vehiculos import router as vehiculos_router
-from routes.codigos import router as codigos_router
-from routes.admin_panel import router as admin_panel_router
-from routes.reporte_semanal import router as reporte_router
-from routes.reporte_formulario import router as reporte_formulario_router
-from routes.eficiencia_tiempo_real import router as eficiencia_router
-from routes import panel_cola
+from backend1.routes.lavado import router as lavado_router
+from backend1.routes.empleados import router as empleados_router
+from backend1.routes.vehiculos import router as vehiculos_router
+from backend1.routes.codigos import router as codigos_router
+from backend1.routes.admin_panel import router as admin_panel_router
+from backend1.routes.reporte_semanal import router as reporte_router
+from backend1.routes.reporte_formulario import router as reporte_formulario_router
+from backend1.routes.eficiencia_tiempo_real import router as eficiencia_router
+from backend1.routes import panel_cola
 
 app = FastAPI()
 
