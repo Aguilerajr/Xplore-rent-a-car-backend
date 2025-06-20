@@ -122,4 +122,8 @@ def registrar_lavado(
         db.query(Clasificacion).filter_by(codigo=codigo).delete()
         db.commit()
 
-    return {"status": "ok", "eficiencia": eficiencia}
+    return {
+    "status": "ok",
+    "eficiencia": eficiencia,
+    "mensaje": "Check-out exitoso"
+}
