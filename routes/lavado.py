@@ -30,7 +30,7 @@ def checkin(
     db_emp: Session = Depends(get_db_empleados)
 ):
     if db.query(RegistroLavado).filter_by(empleado=empleado, fin=None).first():
-        return {"error": "Ya tienes un check-in activo"}
+        return {"status": "error", "mensaje": "Ya tienes un check-in activo"}
 
     clasificacion = db.query(Clasificacion).filter_by(codigo=codigo).first()
     en_cola = db.query(ColaLavado).filter(
@@ -39,12 +39,12 @@ def checkin(
     ).first()
 
     if not clasificacion or not en_cola:
-        return {"error": "Vehículo no clasificado o ya finalizado"}
+        return {"status": "error", "mensaje": "Vehículo no clasificado o ya finalizado"}
 
     try:
         inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
-        return {"error": f"Formato inválido de fecha: {e}"}
+        return {"status": "error", "mensaje": f"Formato inválido de fecha: {e}"}
 
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
@@ -65,7 +65,7 @@ def checkin(
         en_cola.estado = "en_proceso"
 
     db.commit()
-    return {"status": "checkin exitoso"}
+    return {"status": "ok", "mensaje": "Check-in exitoso"}
 
 # Check-out
 @router.post("/registrar")
@@ -90,7 +90,6 @@ def registrar_lavado(
         print("❌ Error en formato de fecha:", str(e))
         return {"error": f"Error en formato de fecha: {str(e)}"}
 
-    # 🔥 SOLUCIÓN CLAVE: no filtrar por fecha exacta
     registro = db.query(RegistroLavado).filter(
         RegistroLavado.empleado == empleado,
         RegistroLavado.fin.is_(None)
@@ -134,4 +133,3 @@ def registrar_lavado(
 
     print("✅ CHECK-OUT COMPLETADO")
     return {"status": "ok", "eficiencia": eficiencia}
- 
