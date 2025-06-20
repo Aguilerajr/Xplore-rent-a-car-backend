@@ -67,12 +67,12 @@ def checkin(
     db.commit()
     return {"status": "ok", "mensaje": "Check-in exitoso"}
 
-# Check-out
+# Check-out (MODIFICADO)
 @router.post("/registrar")
 def registrar_lavado(
     codigo: str = Form(...),
     empleado: str = Form(...),
-    inicio: str = Form(...),
+    inicio: str = Form(...),  # todavía recibido pero no se usa
     fin: str = Form(...),
     db: Session = Depends(get_db),
     db_emp: Session = Depends(get_db_empleados)
@@ -80,34 +80,30 @@ def registrar_lavado(
     print("➡️ Iniciando proceso de CHECK-OUT")
     print(f"📌 Vehículo: {codigo}")
     print(f"👤 Empleado: {empleado}")
-    print(f"⏱️ Inicio: {inicio}")
     print(f"⏱️ Fin: {fin}")
 
     try:
-        inicio_dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M:%S")
         fin_dt = datetime.strptime(fin, "%Y-%m-%d %H:%M:%S")
     except Exception as e:
-        print("❌ Error en formato de fecha:", str(e))
-        return {"error": f"Error en formato de fecha: {str(e)}"}
+        return {"status": "error", "mensaje": f"Error en formato de fecha: {str(e)}"}
 
+    # ✅ Buscar por vehículo y empleado sin depender de "inicio"
     registro = db.query(RegistroLavado).filter(
+        RegistroLavado.vehiculo == codigo,
         RegistroLavado.empleado == empleado,
         RegistroLavado.fin.is_(None)
     ).order_by(RegistroLavado.inicio.desc()).first()
 
     if not registro:
-        print("❌ No se encontró un registro activo con ese empleado")
-        return {"error": "No hay check-in previo"}
-
-    print("✅ Registro encontrado:", registro)
+        return {"status": "error", "mensaje": "No hay check-in previo para este empleado y vehículo"}
 
     clasificacion = db.query(Clasificacion).filter_by(codigo=registro.vehiculo).first()
     if not clasificacion:
-        print("❌ Vehículo no está clasificado en tabla Clasificacion")
-        return {"error": "Vehículo no clasificado"}
+        return {"status": "error", "mensaje": "Vehículo no clasificado"}
 
     tiempo_real = int((fin_dt - registro.inicio).total_seconds() / 60)
     eficiencia = round((clasificacion.tiempo_estimado / tiempo_real) * 100, 1) if tiempo_real > 0 else 0
+
     emp = db_emp.query(Empleado).filter_by(codigo=empleado).first()
     nombre = emp.nombre if emp else "Desconocido"
 
@@ -116,20 +112,14 @@ def registrar_lavado(
     registro.eficiencia = f"{eficiencia}%"
     db.commit()
 
-    print("🧹 Verificando si quedan lavadores activos en ese vehículo...")
-
     activos = db.query(RegistroLavado).filter(
         RegistroLavado.vehiculo == codigo,
         RegistroLavado.fin.is_(None)
     ).count()
 
-    print(f"🚻 Lavadores activos restantes: {activos}")
-
     if activos == 0:
-        print("🗑️ Eliminando de cola y clasificaciones porque ya no hay lavadores")
         db.query(ColaLavado).filter_by(codigo_vehiculo=codigo).delete()
         db.query(Clasificacion).filter_by(codigo=codigo).delete()
         db.commit()
 
-    print("✅ CHECK-OUT COMPLETADO")
     return {"status": "ok", "eficiencia": eficiencia}
