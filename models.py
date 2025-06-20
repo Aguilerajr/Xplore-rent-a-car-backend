@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Integer, DateTime
 from datetime import datetime
-from database import Base, BaseEmpleados
+from database import Base, BaseEmpleados, engine
 
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
@@ -42,3 +42,7 @@ class Empleado(BaseEmpleados):
     __tablename__ = "empleados"
     codigo = Column(String(4), primary_key=True)
     nombre = Column(String)
+
+# ─── CREA LAS TABLAS EN LA BASE DE DATOS SI EJECUTÁS DIRECTAMENTE ─────────────
+if __name__ == "__main__":
+    Base.metadata.create_all(bind=engine)
